@@ -1,0 +1,1177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>🐰 Learn Chinese!</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700;900&display=swap');
+
+  :root {
+    --primary: #FF6B6B;
+    --secondary: #FFD93D;
+    --accent1: #6BCB77;
+    --accent2: #4D96FF;
+    --accent3: #C77DFF;
+    --accent4: #FF9A3C;
+    --bg: #FFF8F0;
+    --card: #FFFFFF;
+    --text: #2D2D2D;
+    --radius: 20px;
+    --theme-primary: #FF6B6B;
+    --theme-light: #fff0f0;
+    --theme-gradient-a: #FF6B6B;
+    --theme-gradient-b: #FF9A3C;
+    --header-shadow: rgba(255,107,107,0.3);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Arial Narrow', Arial, sans-serif; }
+
+  body { background: var(--bg); min-height: 100vh; color: var(--text); overflow-x: hidden; }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0;
+    background:
+      radial-gradient(circle at 10% 20%, var(--grad-spot1, rgba(255,217,61,0.15)) 0%, transparent 40%),
+      radial-gradient(circle at 90% 80%, var(--grad-spot2, rgba(77,150,255,0.15)) 0%, transparent 40%),
+      radial-gradient(circle at 50% 50%, var(--grad-spot3, rgba(107,203,119,0.1)) 0%, transparent 60%);
+    pointer-events: none; z-index: 0;
+  }
+
+  header {
+    background: linear-gradient(135deg, var(--theme-gradient-a), var(--theme-gradient-b));
+    padding: 12px 20px;
+    display: flex; align-items: center; justify-content: space-between;
+    box-shadow: 0 4px 20px var(--header-shadow);
+    position: relative; z-index: 10;
+  }
+  header h1 { font-size: 1.4rem; color: #fff; font-weight: 900; letter-spacing: -0.5px; }
+  #score-badge {
+    background: rgba(255,255,255,0.25); border: 2px solid rgba(255,255,255,0.5);
+    color: #fff; padding: 5px 14px; border-radius: 30px;
+    font-weight: 800; font-size: 1rem; white-space: nowrap;
+  }
+
+  main { max-width: 700px; margin: 0 auto; padding: 24px 16px; position: relative; z-index: 1; }
+
+  .screen { display: none; }
+  .screen.active { display: block; animation: fadeIn 0.35s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* HOME */
+  #home-screen { text-align: center; }
+  .welcome-box {
+    background: var(--card); border-radius: var(--radius);
+    padding: 28px 24px 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.08); margin-bottom: 28px;
+  }
+  .panda { font-size: 4rem; display: block; margin-bottom: 10px; animation: bounce 2s infinite; }
+  @keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-10px)} }
+  .welcome-box h2 { font-size: 1.8rem; font-weight: 900; color: var(--theme-primary); margin-bottom: 6px; }
+  .welcome-box p { color: #777; font-size: 1rem; }
+
+  .game-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 24px; }
+  .game-btn {
+    background: var(--card); border: 3px solid transparent; border-radius: var(--radius);
+    padding: 22px 16px; cursor: pointer; transition: all 0.2s;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.07); text-align: center;
+  }
+  .game-btn:hover:not(:disabled) { transform: translateY(-4px); box-shadow: 0 8px 24px rgba(0,0,0,0.12); }
+  .game-btn:disabled { opacity: 0.5; cursor: default; }
+  .game-btn .icon { font-size: 2.2rem; display: block; margin-bottom: 8px; font-family: 'Noto Sans SC', sans-serif; }
+  .game-btn .label { font-weight: 800; font-size: 1rem; color: var(--text); display: block; }
+  .game-btn .sub { font-size: 0.8rem; color: #999; display: block; margin-top: 3px; }
+  .game-btn .attempts { font-size: 0.78rem; margin-top: 5px; display: block; font-weight: 700; }
+
+  .game-btn[data-game="char-pinyin-mix"] { border-color: #FF6B6B; }
+  .game-btn[data-game="char-pinyin-mix"]:hover:not(:disabled) { background: #fff0f0; }
+  .game-btn[data-game="word-pair"]  { border-color: #4D96FF; }
+  .game-btn[data-game="word-pair"]:hover:not(:disabled)  { background: #f0f5ff; }
+  .game-btn[data-game="meaning-match"] { border-color: #6BCB77; }
+  .game-btn[data-game="meaning-match"]:hover:not(:disabled) { background: #f0fff3; }
+  .game-btn[data-game="fill-blank"] { border-color: #C77DFF; }
+  .game-btn[data-game="fill-blank"]:hover:not(:disabled) { background: #f8f0ff; }
+  .game-btn[data-game="word-link"]  { border-color: #FF9A3C; grid-column: 1 / -1; }
+  .game-btn[data-game="word-link"]:hover:not(:disabled)  { background: #fff8f0; }
+
+  /* GREEN passed state — icon glows green */
+  .game-btn.passed { border-color: #6BCB77 !important; background: #f0fff3 !important; }
+  .game-btn.passed .label { color: #3aaa5c; }
+  .game-btn.passed .icon { color: #3aaa5c; text-shadow: 0 0 8px rgba(107,203,119,0.7); }
+
+  #data-status { font-size: 0.88rem; color: #aaa; text-align: center; }
+  #data-status.ok { color: #6BCB77; font-weight: 700; }
+
+  /* GAME SCREEN */
+  .back-btn {
+    background: none; border: none; color: var(--theme-primary);
+    font-weight: 800; font-size: 1rem; cursor: pointer;
+    padding: 0 0 16px; display: flex; align-items: center; gap: 4px;
+  }
+  .back-btn:hover { opacity: 0.7; }
+
+  .game-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+  .game-title { font-weight: 900; font-size: 1.2rem; color: var(--text); white-space: nowrap; }
+  .progress-wrap { background: #eee; border-radius: 10px; height: 10px; flex: 1; margin: 0 12px; overflow: hidden; }
+  .progress-bar { background: linear-gradient(90deg, var(--theme-gradient-b), var(--theme-gradient-a)); height: 100%; border-radius: 10px; transition: width 0.4s ease; }
+  .q-counter { font-weight: 700; color: #aaa; font-size: 0.9rem; white-space: nowrap; }
+
+  .question-card {
+    background: var(--card); border-radius: var(--radius);
+    padding: 24px 20px 20px; box-shadow: 0 8px 32px rgba(0,0,0,0.08);
+    text-align: center; margin-bottom: 14px; position: relative; overflow: hidden;
+  }
+  .question-card::before {
+    content: ''; position: absolute; top: 0; left: 0; right: 0; height: 5px;
+    background: linear-gradient(90deg, var(--theme-gradient-a), var(--theme-gradient-b), var(--secondary));
+  }
+  .q-label { font-size: 0.85rem; color: #aaa; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 16px; }
+  .q-chinese { font-family: 'Noto Sans SC', sans-serif; font-size: 5rem; font-weight: 900; color: var(--text); line-height: 1; margin-bottom: 8px; }
+  .q-pinyin { font-size: 1.6rem; font-weight: 700; color: var(--theme-primary); margin-bottom: 4px; }
+  .q-hint { font-size: 0.9rem; color: #999; margin-top: 4px; }
+
+  .word-fill-display { display: flex; align-items: center; justify-content: center; gap: 8px; flex-wrap: wrap; margin: 8px 0 4px; }
+  .char-tile {
+    font-family: 'Noto Sans SC', sans-serif; font-size: 2.8rem; font-weight: 900;
+    background: linear-gradient(135deg, #f8f9fa, #fff); border: 3px solid #e9ecef;
+    border-radius: 12px; width: 76px; height: 76px; display: flex; align-items: center; justify-content: center;
+  }
+  .char-tile.blank { border-color: var(--theme-gradient-b); background: var(--theme-light); color: var(--theme-gradient-b); font-size: 2.2rem; }
+
+  .word-pair { display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap; }
+  .char-bubble {
+    font-family: 'Noto Sans SC', sans-serif; font-size: 2.8rem; font-weight: 900;
+    background: linear-gradient(135deg, #f8f9fa, #fff); border: 3px solid #e9ecef;
+    border-radius: 16px; width: 72px; height: 72px; display: flex; align-items: center; justify-content: center;
+  }
+  .plus-sign { font-size: 2rem; color: #ccc; font-weight: 700; }
+
+  .options-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .option-btn {
+    background: var(--card); border: 3px solid #e9ecef; border-radius: 14px;
+    padding: 12px 10px; cursor: pointer; font-size: 1rem; font-weight: 700; color: var(--text);
+    transition: all 0.18s; display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .option-btn .opt-chinese { font-family: 'Noto Sans SC', sans-serif; font-size: 1.4rem; font-weight: 900; }
+  .option-btn .opt-pinyin { font-size: 1.1rem; }
+  .option-btn:hover:not(:disabled) { border-color: #4D96FF; background: #f0f5ff; transform: scale(1.03); }
+  .option-btn.correct { border-color: #6BCB77 !important; background: #f0fff3 !important; color: #6BCB77; }
+  .option-btn.wrong   { border-color: #FF4E4E !important; background: #fff0f0 !important; color: #FF4E4E; }
+  .option-btn:disabled { cursor: default; }
+
+  .yesno-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .yn-btn { padding: 24px; border-radius: 20px; font-size: 1.4rem; font-weight: 900; border: 3px solid transparent; cursor: pointer; transition: all 0.18s; }
+  .yn-btn.yes { background: #f0fff3; border-color: #6BCB77; color: #6BCB77; }
+  .yn-btn.no  { background: #fff0f0; border-color: #FF4E4E; color: #FF4E4E; }
+  .yn-btn:hover:not(:disabled) { transform: scale(1.05); }
+  .yn-btn.correct { background: #6BCB77 !important; color: #fff !important; }
+  .yn-btn.wrong   { background: #FF4E4E !important; color: #fff !important; }
+  .yn-btn:disabled { cursor: default; }
+
+  .feedback { text-align: center; padding: 14px; border-radius: 14px; font-weight: 800; font-size: 1.1rem; margin-top: 16px; display: none; }
+  .feedback.correct { background: #f0fff3; color: #6BCB77; display: block; }
+  .feedback.wrong   { background: #fff0f0; color: #FF4E4E; display: block; }
+
+  #next-btn {
+    display: none; width: 100%; margin-top: 14px;
+    background: linear-gradient(135deg, var(--theme-gradient-b), var(--theme-gradient-a));
+    color: #fff; border: none; border-radius: 14px; padding: 16px;
+    font-size: 1.1rem; font-weight: 800; cursor: pointer; transition: all 0.18s;
+  }
+  #next-btn:hover { transform: scale(1.02); box-shadow: 0 6px 20px var(--header-shadow); }
+
+  /* RESULT */
+  #result-screen { text-align: center; }
+  .result-card { background: var(--card); border-radius: var(--radius); padding: 40px 24px; box-shadow: 0 8px 32px rgba(0,0,0,0.08); margin-bottom: 20px; }
+  .result-emoji { font-size: 5rem; display: block; margin-bottom: 16px; }
+  .result-card h2 { font-size: 2rem; font-weight: 900; margin-bottom: 8px; }
+  .result-score { font-size: 3.5rem; font-weight: 900; color: var(--theme-primary); }
+  .result-card p { color: #888; margin-top: 8px; font-size: 1rem; }
+  .result-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+  .result-btn { flex: 1; padding: 16px; border: none; border-radius: 14px; font-size: 1rem; font-weight: 800; cursor: pointer; transition: all 0.18s; }
+  .result-btn:hover { transform: scale(1.03); }
+  .result-btn.primary   { background: linear-gradient(135deg, var(--theme-gradient-b), var(--theme-gradient-a)); color: #fff; }
+  .result-btn.secondary { background: var(--card); border: 3px solid #eee; color: var(--text); }
+  .stars { font-size: 2.5rem; margin-bottom: 8px; }
+
+  /* CONFETTI */
+  .confetti-piece {
+    position: fixed; width: 10px; height: 10px; border-radius: 2px;
+    animation: confetti-fall 3s ease-in forwards; pointer-events: none; z-index: 999;
+  }
+  @keyframes confetti-fall {
+    0%   { transform: translateY(-20px) rotate(0deg);   opacity: 1; }
+    100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+  }
+
+  /* ── WORD LINK ── */
+  .word-link-area {
+    background: var(--card); border-radius: var(--radius);
+    padding: 20px 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.08); margin-bottom: 16px;
+  }
+  .word-link-instruction {
+    text-align: center; font-size: 0.88rem; color: #999;
+    margin-bottom: 16px; font-weight: 600; line-height: 1.5;
+  }
+  .word-link-columns {
+    display: flex; justify-content: space-between;
+    align-items: flex-start; position: relative;
+  }
+  .wl-column { display: flex; flex-direction: column; gap: 10px; width: 36%; }
+  .wl-svg-area { flex: 1; position: relative; min-height: 300px; }
+  .wl-svg-area svg { position: absolute; top: 0; left: 0; width: 100%; height: 100%; overflow: visible; pointer-events: none; }
+
+  .wl-item {
+    font-family: 'Noto Sans SC', sans-serif;
+    font-size: 1.5rem; font-weight: 900;
+    background: #f8f9fa; border: 3px solid #e9ecef;
+    border-radius: 14px; padding: 12px 8px; text-align: center;
+    cursor: pointer; transition: all 0.18s; user-select: none; position: relative; z-index: 2;
+  }
+  .wl-item:hover:not(.matched-ok):not(.matched-wrong) { border-color: var(--theme-primary); background: var(--theme-light); }
+  .wl-item.selected { border-color: var(--theme-gradient-a); background: var(--theme-light); box-shadow: 0 0 0 3px rgba(255,107,107,0.2); }
+  .wl-item.matched-ok      { border-color: #6BCB77 !important; background: #f0fff3 !important; color: #3aaa5c; cursor: default; }
+  .wl-item.matched-wrong   { border-color: #FF4E4E !important; background: #fff0f0 !important; color: #FF4E4E; cursor: default; }
+  .wl-item.matched-pending { border-color: #AAAAAA !important; background: #f5f5f5 !important; color: #666; cursor: pointer; }
+
+  .wl-feedback { text-align: center; padding: 12px; border-radius: 14px; font-weight: 800; font-size: 1rem; margin-top: 10px; display: none; }
+  .wl-feedback.show { display: block; }
+  .wl-feedback.correct { background: #f0fff3; color: #6BCB77; }
+  .wl-feedback.wrong   { background: #fff0f0; color: #FF4E4E; }
+
+  .wl-submit-btn {
+    width: 100%; padding: 16px;
+    background: linear-gradient(135deg, var(--theme-gradient-b), var(--theme-gradient-a));
+    color: #fff; border: none; border-radius: 14px;
+    font-size: 1.1rem; font-weight: 800; cursor: pointer; transition: all 0.18s; margin-top: 8px;
+  }
+  .wl-submit-btn:hover:not(:disabled) { transform: scale(1.02); }
+  .wl-submit-btn:disabled { opacity: 0.5; cursor: default; }
+
+  @media (max-width: 480px) {
+    .q-chinese { font-size: 3.5rem; }
+    .options-grid { grid-template-columns: 1fr; }
+    .wl-item { font-size: 1.2rem; padding: 10px 5px; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <h1 id="header-title">🐰 Learn Chinese!</h1>
+  <div id="score-badge">⭐ <span id="total-score">0</span> pts</div>
+</header>
+
+<main>
+
+  <!-- HOME -->
+  <div id="home-screen" class="screen active">
+    <div class="welcome-box">
+      <span class="panda" id="home-animal">🐰</span>
+      <h2>你好! Nǐ hǎo!</h2>
+      <p>Pick a game and start learning Chinese!</p>
+    </div>
+    <div class="game-grid">
+      <button class="game-btn" data-game="char-pinyin-mix" onclick="startGame('char-pinyin-mix')">
+        <span class="icon">汉↔pīn</span>
+        <span class="label">Char & Pinyin</span>
+        <span class="sub">Match both ways</span>
+        <span class="attempts" id="att-char-pinyin-mix"></span>
+      </button>
+      <button class="game-btn" data-game="word-pair" onclick="startGame('word-pair')">
+        <span class="icon">汉+汉</span>
+        <span class="label">Word Pair?</span>
+        <span class="sub">Do they make a word?</span>
+        <span class="attempts" id="att-word-pair"></span>
+      </button>
+      <button class="game-btn" data-game="meaning-match" onclick="startGame('meaning-match')">
+        <span class="icon">汉→🌍</span>
+        <span class="label">Word Match</span>
+        <span class="sub">Match to meaning</span>
+        <span class="attempts" id="att-meaning-match"></span>
+      </button>
+      <button class="game-btn" data-game="fill-blank" onclick="startGame('fill-blank')">
+        <span class="icon">汉＿汉</span>
+        <span class="label">Fill the Blank</span>
+        <span class="sub">Complete the word</span>
+        <span class="attempts" id="att-fill-blank"></span>
+      </button>
+      <button class="game-btn" data-game="word-link" onclick="startGame('word-link')">
+        <span class="icon">🔗</span>
+        <span class="label">Word Link</span>
+        <span class="sub">Connect characters to make words!</span>
+        <span class="attempts" id="att-word-link"></span>
+      </button>
+    </div>
+    <div style="display:flex; gap:10px; align-items:center; justify-content:center; flex-wrap:wrap; margin-top:4px;">
+      <button id="refresh-btn" onclick="loadFromGoogleSheets()" style="
+        background: linear-gradient(135deg, var(--theme-gradient-a), var(--theme-gradient-b));
+        color:#fff; border:none; border-radius:30px; padding:8px 20px;
+        font-size:0.95rem; font-weight:800; cursor:pointer; transition:all 0.18s;
+        box-shadow: 0 4px 12px var(--header-shadow);
+      ">🔄 加载题目</button>
+      <p id="data-status" style="font-size:0.88rem; color:#aaa;"></p>
+    </div>
+  </div>
+
+  <!-- GAME -->
+  <div id="game-screen" class="screen">
+    <button class="back-btn" onclick="goHome()">← Back</button>
+    <div class="game-header">
+      <span class="game-title" id="game-title">Game</span>
+      <div class="progress-wrap"><div class="progress-bar" id="progress-bar" style="width:0%"></div></div>
+      <span class="q-counter" id="q-counter">1 / 10</span>
+    </div>
+    <div class="question-card">
+      <div class="q-label" id="q-label">Question</div>
+      <div class="q-chinese" id="q-chinese"></div>
+      <div class="q-pinyin" id="q-pinyin"></div>
+      <div class="q-hint" id="q-hint"></div>
+      <div class="word-pair" id="word-pair-display" style="display:none"></div>
+      <div class="word-fill-display" id="word-fill-display" style="display:none"></div>
+    </div>
+    <div id="options-container" class="options-grid"></div>
+    <div id="yesno-container" class="yesno-grid" style="display:none"></div>
+    <div class="feedback" id="feedback"></div>
+    <button id="next-btn" onclick="nextQuestion()">Next ➜</button>
+  </div>
+
+  <!-- WORD LINK SCREEN -->
+  <div id="word-link-screen" class="screen">
+    <button class="back-btn" onclick="goHome()">← Back</button>
+    <div class="game-header">
+      <span class="game-title">🔗 Word Link</span>
+      <div class="progress-wrap"><div class="progress-bar" id="wl-progress-bar" style="width:0%"></div></div>
+      <span class="q-counter" id="wl-counter">0 / 5</span>
+    </div>
+    <div class="word-link-area">
+      <div class="word-link-instruction">点击左边的字，再点击右边的字来组词！<br>Tap a left character, then a right character to form a word!</div>
+      <div class="word-link-columns" id="wl-columns">
+        <div class="wl-column" id="wl-left"></div>
+        <div class="wl-svg-area" id="wl-svg-area"><svg id="wl-svg"></svg></div>
+        <div class="wl-column" id="wl-right"></div>
+      </div>
+    </div>
+    <div class="wl-feedback" id="wl-feedback"></div>
+    <button class="wl-submit-btn" id="wl-done-btn" onclick="finishWordLink()" disabled>✅ Done!</button>
+  </div>
+
+  <!-- RESULT -->
+  <div id="result-screen" class="screen">
+    <div class="result-card">
+      <span class="result-emoji" id="result-emoji">🎉</span>
+      <div class="stars" id="result-stars">⭐⭐⭐</div>
+      <h2 id="result-title">Amazing!</h2>
+      <div class="result-score" id="result-score">10 / 10</div>
+      <p id="result-msg">You got every answer right!</p>
+      <p id="result-attempts" style="margin-top:10px; font-size:0.9rem; color:#aaa;"></p>
+    </div>
+    <div class="result-actions">
+      <button class="result-btn primary" id="play-again-btn" onclick="playAgain()">🔄 Try Again</button>
+      <button class="result-btn secondary" onclick="goHome()">🏠 Home</button>
+    </div>
+  </div>
+
+</main>
+
+<script>
+// ── THEME & ANIMAL ─────────────────────────────────────────────────────────
+const THEMES = [
+  { ga:'#FF6B8A', gb:'#FFB347', light:'#fff0f5', shadow:'rgba(255,107,138,0.3)', bg:'#FFF5F8', s1:'rgba(255,183,213,0.2)', s2:'rgba(255,179,71,0.15)', s3:'rgba(255,107,138,0.1)' },
+  { ga:'#4D96FF', gb:'#38CFCF', light:'#f0f8ff', shadow:'rgba(77,150,255,0.3)',  bg:'#F0F8FF', s1:'rgba(77,150,255,0.15)', s2:'rgba(56,207,207,0.15)', s3:'rgba(100,180,255,0.1)' },
+  { ga:'#3DBE92', gb:'#84E8A2', light:'#f0fff7', shadow:'rgba(61,190,146,0.3)',  bg:'#F2FFF8', s1:'rgba(61,190,146,0.15)', s2:'rgba(132,232,162,0.2)', s3:'rgba(61,190,146,0.1)' },
+  { ga:'#A78BFA', gb:'#F9A8D4', light:'#f5f0ff', shadow:'rgba(167,139,250,0.3)', bg:'#F8F5FF', s1:'rgba(167,139,250,0.15)', s2:'rgba(249,168,212,0.15)', s3:'rgba(167,139,250,0.1)' },
+  { ga:'#FF9A3C', gb:'#FFD93D', light:'#fff8f0', shadow:'rgba(255,154,60,0.3)',  bg:'#FFFAF2', s1:'rgba(255,217,61,0.2)', s2:'rgba(255,154,60,0.15)', s3:'rgba(255,200,100,0.1)' },
+  { ga:'#FF6B6B', gb:'#FFA07A', light:'#fff0f0', shadow:'rgba(255,107,107,0.3)', bg:'#FFF5F5', s1:'rgba(255,160,122,0.2)', s2:'rgba(255,107,107,0.15)', s3:'rgba(255,130,100,0.1)' },
+];
+const ANIMALS = ['🐼','🐰','🐭','🐦','🐹','🐱','🦊','🐸','🐧','🦔','🦆','🐣','🦉'];
+
+function applyTheme() {
+  const t = THEMES[Math.floor(Math.random() * THEMES.length)];
+  const a = ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
+  const r = document.documentElement;
+  r.style.setProperty('--theme-primary',    t.ga);
+  r.style.setProperty('--theme-light',      t.light);
+  r.style.setProperty('--theme-gradient-a', t.ga);
+  r.style.setProperty('--theme-gradient-b', t.gb);
+  r.style.setProperty('--header-shadow',    t.shadow);
+  r.style.setProperty('--bg',               t.bg);
+  r.style.setProperty('--grad-spot1',       t.s1);
+  r.style.setProperty('--grad-spot2',       t.s2);
+  r.style.setProperty('--grad-spot3',       t.s3);
+  document.getElementById('home-animal').textContent  = a;
+  document.getElementById('header-title').textContent = `${a} Learn Chinese!`;
+  document.title = `${a} Learn Chinese!`;
+}
+
+// ── DATA ───────────────────────────────────────────────────────────────────
+const SHEET_ID  = '1jxgGnI2kf7ZRiybz4mYCDPuBfrHpZQZmceRU2QHlU9g';
+const GID_CHARS = '1460577496';
+const GID_WORDS = '1306571548';
+const CSV_BASE  = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=`;
+let charData = [], wordData = [];
+let totalScore = 0, gameCorrect = 0, currentGame = '';
+let questions = [], currentQ = 0, answered = false;
+const QUESTIONS_PER_GAME = 10;
+
+const QUIZ_ORDER = ['char-pinyin-mix','word-pair','meaning-match','fill-blank','word-link'];
+const QUIZ_NAMES = { 'char-pinyin-mix':'Char & Pinyin','word-pair':'Word Pair','meaning-match':'Word Match','fill-blank':'Fill the Blank','word-link':'Word Link' };
+
+const quizState = {};
+QUIZ_ORDER.forEach(g => quizState[g] = { passed: false, scores: [] });
+
+function todayKey() { return new Date().toISOString().slice(0, 10); }
+function saveState() { sessionStorage.setItem('chineseAppState', JSON.stringify({ date: todayKey(), state: quizState })); }
+function loadState() {
+  try {
+    const raw = sessionStorage.getItem('chineseAppState');
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    if (data.date !== todayKey()) return;
+    QUIZ_ORDER.forEach(g => { if (data.state[g]) Object.assign(quizState[g], data.state[g]); if (!quizState[g].scores) quizState[g].scores = []; });
+  } catch(e) {}
+}
+
+function updateHomeButtons() {
+  const dataLoaded = charData.length > 0 || wordData.length > 0;
+  QUIZ_ORDER.forEach(type => {
+    const btn   = document.querySelector(`[data-game="${type}"]`);
+    const attEl = document.getElementById(`att-${type}`);
+    if (!btn) return;
+    btn.classList.remove('passed');
+    // word-link needs wordData; other games need charData/wordData
+    btn.disabled = !dataLoaded;
+    btn.onclick  = () => startGame(type);
+    if (quizState[type].passed) {
+      btn.classList.add('passed');
+      attEl.textContent = '✅ Perfect!';
+      attEl.style.color = '#3aaa5c';
+    } else {
+      attEl.textContent = '';
+      attEl.style.color = '';
+    }
+  });
+}
+
+function loadCachedData() {
+  const status = document.getElementById('data-status');
+  const refreshBtn = document.getElementById('refresh-btn');
+  try {
+    const raw = localStorage.getItem('chineseAppData');
+    if (!raw) {
+      status.textContent = '点击下方按钮加载题目数据 👇';
+      status.className = '';
+      return;
+    }
+    const cached = JSON.parse(raw);
+    charData = cached.charData || [];
+    wordData = cached.wordData || [];
+    if (charData.length > 0 || wordData.length > 0) {
+      const date = cached.savedAt ? new Date(cached.savedAt).toLocaleDateString('zh-CN') : '之前';
+      status.textContent = `✅ 已加载 ${charData.length} 个汉字 & ${wordData.length} 个词语（${date}）`;
+      status.className = 'ok';
+      if (refreshBtn) refreshBtn.textContent = '🔄 重新加载';
+      updateHomeButtons();
+    }
+  } catch(e) {
+    status.textContent = '点击下方按钮加载题目数据 👇';
+    status.className = '';
+  }
+}
+
+async function loadFromGoogleSheets() {
+  const status = document.getElementById('data-status');
+  const refreshBtn = document.getElementById('refresh-btn');
+  status.textContent = '⏳ 加载中...'; status.className = '';
+  if (refreshBtn) { refreshBtn.disabled = true; refreshBtn.textContent = '⏳ 加载中...'; }
+  // Disable data-dependent games while loading
+  document.querySelectorAll('.game-btn:not([data-game="word-link"])').forEach(b => b.disabled = true);
+
+  const url = 'https://script.google.com/macros/s/AKfycbxgh46y5Aczzjow6kG6ogHYFdmNhDo8D_dNXlvze8WggTsdw9VS-_BRgJhLO-6Cot8/exec';
+
+  try {
+    const res  = await fetch(url, { redirect: 'follow' });
+    const data = await res.json();
+
+    const [charHeader, ...charData_rows] = data.chars;
+    const ci = charHeader.map(h => String(h).toLowerCase().trim());
+    charData = charData_rows.map(r => ({
+      character: String(r[ci.indexOf('character')] || '').trim(),
+      pinyin:    String(r[ci.indexOf('pinyin')]    || '').trim(),
+      words:     String(r[ci.indexOf('words')]     || '').split(/[,，]/).map(w => w.trim()).filter(Boolean),
+    })).filter(r => r.character && r.pinyin);
+
+    const [wordHeader, ...wordData_rows] = data.words;
+    const wi = wordHeader.map(h => String(h).toLowerCase().trim());
+    wordData = wordData_rows.map(r => ({
+      word:    String(r[wi.indexOf('word')]    || '').trim(),
+      meaning: String(r[wi.indexOf('meaning')] || '').trim(),
+    })).filter(r => r.word && r.meaning);
+
+    // Save to localStorage for next visit
+    localStorage.setItem('chineseAppData', JSON.stringify({ charData, wordData, savedAt: Date.now() }));
+    status.textContent = `✅ 已加载 ${charData.length} 个汉字 & ${wordData.length} 个词语`;
+    status.className = 'ok';
+    if (refreshBtn) { refreshBtn.disabled = false; refreshBtn.textContent = '🔄 重新加载'; }
+    updateHomeButtons();
+  } catch(err) {
+    console.error('Fetch error:', err);
+    // Try JSONP fallback
+    status.textContent = '⏳ Trying alternative method...';
+    try {
+      await loadViaJSONP(url);
+    } catch(err2) {
+      console.error('JSONP error:', err2);
+      status.textContent = `❌ 加载失败，请重试`;
+      if (refreshBtn) { refreshBtn.disabled = false; refreshBtn.textContent = '🔄 重试'; }
+    }
+  }
+
+}
+
+function loadViaJSONP(url) {
+  return new Promise((resolve, reject) => {
+    const callbackName = 'cb_' + Math.random().toString(36).slice(2);
+    const fullUrl = url + '?callback=' + callbackName;
+    const script = document.createElement('script');
+
+    const timer = setTimeout(() => {
+      cleanup();
+      reject(new Error('JSONP timeout'));
+    }, 10000);
+
+    window[callbackName] = function(data) {
+      cleanup();
+      try {
+        processData(data);
+        resolve();
+      } catch(e) { reject(e); }
+    };
+
+    function cleanup() {
+      clearTimeout(timer);
+      delete window[callbackName];
+      if (script.parentNode) script.parentNode.removeChild(script);
+    }
+
+    script.onerror = () => { cleanup(); reject(new Error('JSONP script load failed')); };
+    script.src = fullUrl;
+    document.head.appendChild(script);
+  });
+}
+
+function processData(data) {
+  const status = document.getElementById('data-status');
+
+  const [charHeader, ...charData_rows] = data.chars;
+  const ci = charHeader.map(h => String(h).toLowerCase().trim());
+  charData = charData_rows.map(r => ({
+    character: String(r[ci.indexOf('character')] || '').trim(),
+    pinyin:    String(r[ci.indexOf('pinyin')]    || '').trim(),
+    words:     String(r[ci.indexOf('words')]     || '').split(/[,，]/).map(w => w.trim()).filter(Boolean),
+  })).filter(r => r.character && r.pinyin);
+
+  const [wordHeader, ...wordData_rows] = data.words;
+  const wi = wordHeader.map(h => String(h).toLowerCase().trim());
+  wordData = wordData_rows.map(r => ({
+    word:    String(r[wi.indexOf('word')]    || '').trim(),
+    meaning: String(r[wi.indexOf('meaning')] || '').trim(),
+  })).filter(r => r.word && r.meaning);
+
+  status.textContent = `✅ Loaded ${charData.length} characters & ${wordData.length} words`;
+  status.className = 'ok';
+  updateHomeButtons();
+}
+
+
+document.addEventListener('DOMContentLoaded', () => {
+  applyTheme();
+  loadState();
+  loadCachedData();
+  updateHomeButtons();
+});
+
+function shuffle(arr) { return [...arr].sort(() => Math.random() - 0.5); }
+function pinyinBase(p) { return p.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\d/g,'').toLowerCase(); }
+
+// ── START GAME ─────────────────────────────────────────────────────────────
+function startGame(type) {
+  if (type === 'word-link') { startWordLink(); return; }
+  if ((type==='meaning-match'||type==='fill-blank') && wordData.length<4) { alert('Need at least 4 words!'); return; }
+  if (type==='char-pinyin-mix' && charData.length<5) { alert('Need at least 5 characters!'); return; }
+  if (type==='word-pair' && wordData.length<4) { alert('Need at least 4 words to play Word Pair!'); return; }
+  currentGame = type; currentQ = 0; gameCorrect = 0; answered = false;
+  questions = generateQuestions(type);
+  showScreen('game-screen'); updateScoreBadge(); renderQuestion();
+}
+
+function generateQuestions(type) {
+  if (type === 'char-pinyin-mix') {
+    return shuffle(charData).slice(0, QUESTIONS_PER_GAME).map(item => {
+      const dir = Math.random() > 0.5 ? 'char-to-pinyin' : 'pinyin-to-char';
+      if (dir === 'char-to-pinyin') {
+        const wrong = shuffle(charData.filter(d=>d.character!==item.character)).slice(0,3).map(d=>d.pinyin);
+        return { item, type, dir, answer: item.pinyin, options: shuffle([item.pinyin,...wrong]) };
+      } else {
+        const base  = pinyinBase(item.pinyin);
+        const wrong = shuffle(charData.filter(d=>d.character!==item.character&&pinyinBase(d.pinyin)!==base)).slice(0,3).map(d=>d.character);
+        return { item, type, dir, answer: item.character, options: shuffle([item.character,...wrong]) };
+      }
+    });
+  }
+  if (type === 'word-pair') {
+    // Build a lookup: word string -> meaning
+    const meaningMap = {};
+    wordData.forEach(d => { meaningMap[d.word] = d.meaning; });
+    // Build set of ALL known two-char words for ambiguity checking
+    const allWordSet = new Set(wordData.map(d => d.word));
+
+    // Collect eligible questions: charData items that have at least one 2-char word
+    const eligible = shuffle(charData.filter(item =>
+      item.words && item.words.some(w => [...w].length === 2)
+    ));
+
+    const qs = [];
+    for (const item of eligible) {
+      if (qs.length >= QUESTIONS_PER_GAME) break;
+      // Pick a valid 2-char word starting with this character
+      const validWords = item.words.filter(w => [...w].length === 2 && [...w][0] === item.character);
+      if (validWords.length === 0) continue;
+      const word    = validWords[Math.floor(Math.random() * validWords.length)];
+      const chars   = [...word];
+      const charA   = chars[0];
+      const correct = chars[1];
+      const meaning = meaningMap[word] || '';
+
+      // Pick 3 wrong second chars: must NOT form a known word with charA
+      const wrongPool = shuffle(charData.filter(d =>
+        d.character !== correct &&
+        !allWordSet.has(charA + d.character)
+      ));
+      if (wrongPool.length < 3) continue;
+      const wrongChars = wrongPool.slice(0, 3).map(d => d.character);
+      const options    = shuffle([correct, ...wrongChars]);
+      qs.push({ item, type, charA, correct, meaning, options });
+    }
+    return qs;
+  }
+  if (type === 'meaning-match') {
+    return shuffle(wordData).slice(0, QUESTIONS_PER_GAME).map(item => {
+      const dir = Math.random() > 0.5 ? 'word-to-meaning' : 'meaning-to-word';
+      if (dir === 'word-to-meaning') {
+        const wrong = shuffle(wordData.filter(d=>d.word!==item.word)).slice(0,3).map(d=>d.meaning);
+        return { item, type, dir, answer: item.meaning, options: shuffle([item.meaning,...wrong]) };
+      } else {
+        const wrong = shuffle(wordData.filter(d=>d.word!==item.word)).slice(0,3).map(d=>d.word);
+        return { item, type, dir, answer: item.word, options: shuffle([item.word,...wrong]) };
+      }
+    });
+  }
+  if (type === 'fill-blank') {
+    const eligible = wordData.filter(d=>[...d.word].length>=2);
+    return shuffle(eligible).slice(0, QUESTIONS_PER_GAME).map(item => {
+      const chars = [...item.word];
+      const blankIdx = Math.floor(Math.random()*chars.length);
+      const answer = chars[blankIdx];
+      const wrong = shuffle(charData.filter(d=>d.character!==answer)).slice(0,3).map(d=>d.character);
+      return { item, type, chars, blankIdx, answer, options: shuffle([answer,...wrong]) };
+    });
+  }
+}
+
+function renderQuestion() {
+  const q = questions[currentQ]; answered = false;
+  document.getElementById('progress-bar').style.width = (currentQ/QUESTIONS_PER_GAME*100)+'%';
+  document.getElementById('q-counter').textContent = `${currentQ+1} / ${QUESTIONS_PER_GAME}`;
+  document.getElementById('feedback').className = 'feedback';
+  document.getElementById('feedback').textContent = '';
+  document.getElementById('next-btn').style.display = 'none';
+  const charEl=document.getElementById('q-chinese'), pinEl=document.getElementById('q-pinyin');
+  const hintEl=document.getElementById('q-hint'), labelEl=document.getElementById('q-label');
+  const optCont=document.getElementById('options-container'), ynCont=document.getElementById('yesno-container');
+  const wpDisp=document.getElementById('word-pair-display'), wfDisp=document.getElementById('word-fill-display');
+  charEl.style.display=pinEl.style.display=hintEl.style.display=labelEl.style.display='';
+  charEl.style.fontSize='5rem'; pinEl.style.fontSize='1.6rem';
+  wpDisp.style.display=wfDisp.style.display='none';
+  optCont.style.display=''; ynCont.style.display='none';
+  optCont.innerHTML=''; ynCont.innerHTML='';
+
+  if (q.type==='char-pinyin-mix') {
+    document.getElementById('game-title').textContent = '🔀 Char & Pinyin';
+    if (q.dir==='char-to-pinyin') {
+      labelEl.textContent='What is the pinyin?'; charEl.textContent=q.item.character; pinEl.textContent=hintEl.textContent='';
+      renderOptions(q.options, q.answer, 'pinyin');
+    } else {
+      labelEl.textContent='Which character matches?'; charEl.textContent='';
+      pinEl.textContent=q.item.pinyin; pinEl.style.fontSize='2.5rem'; hintEl.textContent='';
+      renderOptions(q.options, q.answer, 'character');
+    }
+  } else if (q.type==='word-pair') {
+    document.getElementById('game-title').textContent = '🔤 Word Pair';
+    labelEl.textContent = 'Which character completes the word?';
+    charEl.style.display = pinEl.style.display = hintEl.style.display = 'none';
+    wpDisp.style.display = 'flex';
+    wpDisp.innerHTML = `<div class="char-bubble">${q.charA}</div><div class="plus-sign">+</div><div class="char-bubble" style="border-color:var(--theme-primary);background:var(--theme-light);color:var(--theme-primary);font-size:2.5rem;">？</div>`;
+    optCont.style.display = '';
+    ynCont.style.display  = 'none';
+    renderOptions(q.options, q.correct, 'character');
+  } else if (q.type==='meaning-match') {
+    document.getElementById('game-title').textContent = '🌍 Word Match';
+    if (q.dir==='word-to-meaning') {
+      labelEl.textContent='What does this word mean?'; charEl.textContent=q.item.word; charEl.style.fontSize='3.5rem'; pinEl.textContent=hintEl.textContent='';
+      renderOptions(q.options, q.answer, 'meaning');
+    } else {
+      labelEl.textContent='Which word matches?'; charEl.textContent=''; pinEl.textContent=q.item.meaning; pinEl.style.fontSize='1.8rem'; hintEl.textContent='';
+      renderOptions(q.options, q.answer, 'word');
+    }
+  } else if (q.type==='fill-blank') {
+    document.getElementById('game-title').textContent = '✏️ Fill the Blank';
+    labelEl.style.display=charEl.style.display=pinEl.style.display='none';
+    hintEl.textContent = q.item.meaning ? `Meaning: ${q.item.meaning}` : '';
+    wfDisp.style.display='flex';
+    wfDisp.innerHTML = q.chars.map((ch,i) => i===q.blankIdx ? `<div class="char-tile blank">？</div>` : `<div class="char-tile">${ch}</div>`).join('');
+    renderOptions(q.options, q.answer, 'character');
+  }
+}
+
+function renderOptions(options, answer, mode) {
+  const cont = document.getElementById('options-container');
+  cont.innerHTML = '';
+  options.forEach(opt => {
+    const btn = document.createElement('button');
+    btn.className = 'option-btn';
+    if (mode==='character'||mode==='word') btn.innerHTML=`<span class="opt-chinese">${opt}</span>`;
+    else btn.innerHTML=`<span class="${mode==='pinyin'?'opt-pinyin':''}">${opt}</span>`;
+    btn.onclick = () => selectOption(btn, opt, answer);
+    cont.appendChild(btn);
+  });
+}
+
+function selectOption(btn, chosen, answer) {
+  if (answered) return;
+  answered = true;
+  const isCorrect = chosen === answer;
+  document.querySelectorAll('.option-btn').forEach(b => {
+    const label = b.querySelector('[class]')?.textContent || b.textContent;
+    if (label.trim()===answer) b.classList.add('correct'); else b.classList.add('wrong');
+    b.disabled = true;
+  });
+  if (isCorrect) {
+    totalScore+=10; gameCorrect++; updateScoreBadge();
+    const q = questions[currentQ];
+    // For word-pair, show meaning for 2s then auto-advance
+    if (q && q.type === 'word-pair' && q.meaning) {
+      showFeedback(true, answer, `${q.charA}${q.correct} = ${q.meaning}`);
+      setTimeout(nextQuestion, 2000);
+    } else {
+      showFeedback(true, answer);
+      setTimeout(nextQuestion, 800);
+    }
+  } else {
+    showFeedback(false, answer);
+    document.getElementById('next-btn').style.display='block';
+  }
+}
+
+function answerYesNo(userSaid, correctAnswer) {
+  if (answered) return;
+  answered = true;
+  const isCorrect = userSaid === correctAnswer;
+  const yesBtn=document.querySelector('.yn-btn.yes'), noBtn=document.querySelector('.yn-btn.no');
+  yesBtn.disabled=true; noBtn.disabled=true;
+  if (correctAnswer) { yesBtn.classList.add('correct'); if (!isCorrect) noBtn.classList.add('wrong'); }
+  else               { noBtn.classList.add('correct');  if (!isCorrect) yesBtn.classList.add('wrong'); }
+  const q = questions[currentQ];
+  const msg = q.answer ? `${q.charA}${q.charB} is a real word!` : `${q.charA}${q.charB} is NOT a real word.`;
+  if (isCorrect) {
+    totalScore+=10; gameCorrect++; updateScoreBadge();
+    showFeedback(true, null, msg); setTimeout(nextQuestion, 800);
+  } else {
+    showFeedback(false, null, msg); document.getElementById('next-btn').style.display='block';
+  }
+}
+
+function showFeedback(correct, correctAnswer, customMsg) {
+  const fb = document.getElementById('feedback');
+  if (correct) {
+    fb.className='feedback correct';
+    const praise = ['🌟 Amazing!','🎉 Correct!','✨ You got it!','👏 Great job!','💫 Brilliant!'];
+    const base   = praise[Math.floor(Math.random()*praise.length)];
+    fb.textContent = customMsg ? `${base}  ${customMsg}` : base;
+  } else {
+    fb.className='feedback wrong';
+    fb.textContent = customMsg ? `❌ ${customMsg}` : `❌ The answer was: ${correctAnswer}`;
+  }
+  // Scroll feedback into view on mobile
+  setTimeout(() => fb.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), 50);
+}
+
+function nextQuestion() {
+  currentQ++;
+  if (currentQ>=QUESTIONS_PER_GAME) showResult(); else renderQuestion();
+}
+
+function showResult() {
+  showScreen('result-screen');
+  const score  = gameCorrect * 10;
+  document.getElementById('result-score').textContent = `${score} / 100`;
+  const s = quizState[currentGame];
+  const passed = score === 100;
+  s.scores.push(score);
+  let emoji, stars, title, msg;
+  if (passed) {
+    if (!s.passed) { s.passed=true; updateHomeButtons(); }
+    saveState();
+    emoji='🏆'; stars='⭐⭐⭐'; title='Perfect 100!'; msg='You nailed it! 🎉';
+    launchConfetti();
+  } else if (score>=70) {
+    saveState(); emoji='🎉'; stars='⭐⭐'; title='So close!'; msg="Need 100 to pass. You've got this!";
+  } else {
+    saveState(); emoji='💪'; stars='⭐'; title='Keep going!'; msg='Practice makes perfect!';
+  }
+  document.getElementById('result-emoji').textContent    = emoji;
+  document.getElementById('result-stars').textContent    = stars;
+  document.getElementById('result-title').textContent    = title;
+  document.getElementById('result-msg').textContent      = msg;
+  document.getElementById('result-attempts').textContent = '';
+  document.getElementById('play-again-btn').style.display='block';
+}
+
+function playAgain() { gameCorrect=0; startGame(currentGame); }
+function goHome()    { document.getElementById('play-again-btn').style.display='block'; showScreen('home-screen'); updateHomeButtons(); }
+function showScreen(id) { document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
+function updateScoreBadge() { document.getElementById('total-score').textContent = totalScore; }
+
+function launchConfetti() {
+  const colors=['#FF6B6B','#FFD93D','#6BCB77','#4D96FF','#C77DFF','#FF9A3C'];
+  for (let i=0;i<60;i++) {
+    setTimeout(()=>{
+      const c=document.createElement('div'); c.className='confetti-piece';
+      c.style.left=Math.random()*100+'vw'; c.style.background=colors[Math.floor(Math.random()*colors.length)];
+      c.style.animationDuration=(2+Math.random()*2)+'s'; c.style.width=c.style.height=(8+Math.random()*10)+'px';
+      document.body.appendChild(c); setTimeout(()=>c.remove(),4000);
+    },i*40);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+// ── WORD LINK ─────────────────────────────────────────────────────────────
+// 4 rounds × 5 pairs = 20 pairs total. All 20 correct → green icon.
+// ══════════════════════════════════════════════════════════════════════════
+const WL_ROUNDS    = 4;
+const WL_PER_ROUND = 5;
+let wlAllPairs     = [];
+let wlRound        = 0;
+let wlPairs        = [];
+let wlSelected     = null;
+let wlMatches      = {};
+let wlConfirmed    = false;
+let wlRoundCorrect = 0;
+let wlTotalCorrect = 0;
+
+function buildAllWordLinkPairs() {
+  const needed = WL_ROUNDS * WL_PER_ROUND;
+
+  // Use two-character words from Google Sheet wordData
+  const twoCharWords = wordData
+    .filter(d => [...d.word].length === 2)
+    .map(d => ({ left: [...d.word][0], right: [...d.word][1], word: d.word }));
+
+  if (twoCharWords.length < needed) {
+    alert(`需要至少 ${needed} 个两字词才能开始 Word Link，目前只有 ${twoCharWords.length} 个。请先加载题目数据！`);
+    return [];
+  }
+
+  // Build disambiguation-safe set
+  const allWordSet = new Set(twoCharWords.map(p => p.word));
+  const shuffled   = shuffle([...twoCharWords]);
+  const chosen     = [];
+
+  for (const candidate of shuffled) {
+    if (chosen.length >= needed) break;
+    const { left: cL, right: cR } = candidate;
+    let bad = false;
+    for (const ex of chosen) {
+      const { left: eL, right: eR } = ex;
+      // Cross-pair ambiguity check
+      if (allWordSet.has(cL + eR) || allWordSet.has(eL + cR)) { bad = true; break; }
+      // Duplicate left or right chars
+      if (cL === eL || cR === eR) { bad = true; break; }
+    }
+    if (!bad) chosen.push(candidate);
+  }
+
+  // If disambiguation left us short, fill with remaining words (ignoring ambiguity)
+  if (chosen.length < needed) {
+    for (const candidate of shuffled) {
+      if (chosen.length >= needed) break;
+      if (!chosen.includes(candidate)) chosen.push(candidate);
+    }
+  }
+
+  return chosen.slice(0, needed);
+}
+
+
+function startWordLink() {
+  try {
+    wlAllPairs = buildAllWordLinkPairs();
+    if (!wlAllPairs || wlAllPairs.length === 0) return;
+    wlRound        = 0;
+    wlTotalCorrect = 0;
+    currentGame    = 'word-link';
+    showScreen('word-link-screen');
+    startWlRound();
+  } catch(e) {
+    alert('Word Link error: ' + e.message + '\n' + e.stack);
+  }
+}
+
+function startWlRound() {
+  const offset  = wlRound * WL_PER_ROUND;
+  wlPairs       = wlAllPairs.slice(offset, offset + WL_PER_ROUND);
+  wlSelected     = null;
+  wlMatches      = {};
+  wlConfirmed    = false;
+  wlRoundCorrect = 0;
+  renderWordLink();
+}
+
+function renderWordLink() {
+  const leftCol  = document.getElementById('wl-left');
+  const rightCol = document.getElementById('wl-right');
+  const svg      = document.getElementById('wl-svg');
+  const feedback = document.getElementById('wl-feedback');
+  const doneBtn  = document.getElementById('wl-done-btn');
+
+  feedback.className = 'wl-feedback';
+  feedback.textContent = '';
+  doneBtn.style.display = 'none';
+  leftCol.innerHTML = rightCol.innerHTML = svg.innerHTML = '';
+
+  const rightOrder = shuffle(wlPairs.map((_, i) => i));
+
+  wlPairs.forEach((pair, i) => {
+    const el = document.createElement('div');
+    el.className = 'wl-item';
+    el.textContent = pair.left;
+    el.dataset.idx = i;
+    el.onclick = () => wlClickLeft(i);
+    leftCol.appendChild(el);
+  });
+
+  rightOrder.forEach(pairIdx => {
+    const el = document.createElement('div');
+    el.className = 'wl-item';
+    el.textContent = wlPairs[pairIdx].right;
+    el.dataset.pairidx = pairIdx;
+    el.onclick = () => wlClickRight(pairIdx, el);
+    rightCol.appendChild(el);
+  });
+
+  updateWlProgress();
+}
+
+function wlClickLeft(idx) {
+  // Allow re-clicking an already-matched (non-confirmed) left item to undo it
+  if (wlMatches.hasOwnProperty(idx) && !wlConfirmed) {
+    wlUndoMatch(idx);
+    return;
+  }
+  if (wlMatches.hasOwnProperty(idx)) return;
+  wlSelected = idx;
+  document.querySelectorAll('#wl-left .wl-item').forEach(el => {
+    el.classList.toggle('selected', parseInt(el.dataset.idx) === idx);
+  });
+}
+
+function wlUndoMatch(leftIdx) {
+  const rightPairIdx = wlMatches[leftIdx];
+  delete wlMatches[leftIdx];
+
+  // Reset left item
+  const leftEl = document.querySelector(`#wl-left .wl-item[data-idx="${leftIdx}"]`);
+  if (leftEl) {
+    leftEl.classList.remove('matched-ok', 'matched-wrong', 'selected');
+    leftEl.onclick = () => wlClickLeft(leftIdx);
+  }
+  // Reset right item
+  const rightEl = document.querySelector(`#wl-right .wl-item[data-pairidx="${rightPairIdx}"]`);
+  if (rightEl) {
+    rightEl.classList.remove('matched-ok', 'matched-wrong');
+    rightEl.onclick = () => wlClickRight(rightPairIdx, rightEl);
+  }
+
+  // Clear feedback & done button, redraw lines
+  const fb = document.getElementById('wl-feedback');
+  fb.className = 'wl-feedback';
+  fb.textContent = '';
+  document.getElementById('wl-done-btn').style.display = 'none';
+
+  wlSelected = leftIdx;
+  leftEl && leftEl.classList.add('selected');
+  drawWlLines();
+  updateWlProgress();
+}
+
+function wlClickRight(pairIdx, rEl) {
+  if (wlSelected === null) return;
+  if (wlConfirmed) return;
+
+  // If this right item is already matched, undo that match first
+  const existingLeft = Object.entries(wlMatches).find(([l, r]) => r === pairIdx);
+  if (existingLeft) {
+    wlUndoMatch(parseInt(existingLeft[0]));
+  }
+
+  const leftIdx = wlSelected;
+
+  const leftEl = document.querySelector(`#wl-left .wl-item[data-idx="${leftIdx}"]`);
+  if (leftEl) {
+    leftEl.classList.remove('selected', 'matched-ok', 'matched-wrong');
+    leftEl.classList.add('matched-pending');
+    leftEl.onclick = () => wlClickLeft(leftIdx);
+  }
+  rEl.classList.remove('matched-ok', 'matched-wrong');
+  rEl.classList.add('matched-pending');
+  rEl.onclick = () => wlClickRight(pairIdx, rEl);
+
+  wlMatches[leftIdx] = pairIdx;
+  wlSelected = null;
+  drawWlLines();
+  updateWlProgress();
+
+  // All 5 matched — now evaluate
+  if (Object.keys(wlMatches).length === wlPairs.length) {
+    evaluateRound();
+  }
+}
+
+function evaluateRound() {
+  let roundCorrect = 0;
+  Object.entries(wlMatches).forEach(([lIdx, rPairIdx]) => {
+    const isCorrect = parseInt(lIdx) === rPairIdx;
+    const leftEl  = document.querySelector(`#wl-left .wl-item[data-idx="${lIdx}"]`);
+    const rightEl = document.querySelector(`#wl-right .wl-item[data-pairidx="${rPairIdx}"]`);
+    if (isCorrect) {
+      roundCorrect++;
+      leftEl  && leftEl.classList.replace('matched-pending', 'matched-ok');
+      rightEl && rightEl.classList.replace('matched-pending', 'matched-ok');
+      // Lock correct ones — can't undo
+      leftEl  && (leftEl.onclick  = null);
+      rightEl && (rightEl.onclick = null);
+    }
+    // Wrong ones stay as matched-pending so they can be clicked to undo
+  });
+
+  // Redraw lines with correct/wrong colors
+  drawWlLines();
+
+  const roundPerfect = roundCorrect === WL_PER_ROUND;
+  const isLastRound  = wlRound === WL_ROUNDS - 1;
+
+  if (roundPerfect) {
+    wlRoundCorrect  = WL_PER_ROUND;
+    wlTotalCorrect += WL_PER_ROUND;
+    totalScore     += WL_PER_ROUND * 10;
+    updateScoreBadge();
+
+    if (isLastRound) {
+      setTimeout(finishWordLink, 800);
+    } else {
+      showWlFeedback(true, null, `Round ${wlRound + 1} done! 🎉 Next round...`);
+      setTimeout(() => { wlRound++; startWlRound(); }, 1200);
+    }
+  } else {
+    // Has mistakes — show 再想想, allow fixing
+    const fb = document.getElementById('wl-feedback');
+    fb.className = 'wl-feedback show wrong';
+    fb.textContent = '🤔 再想想！点击左边的字可以重新连线';
+  }
+}
+
+function showWlFeedback(correct, word, customMsg) {
+  const fb = document.getElementById('wl-feedback');
+  if (customMsg) {
+    fb.className = 'wl-feedback show ' + (correct ? 'correct' : 'wrong');
+    fb.textContent = customMsg;
+  } else if (correct) {
+    fb.className = 'wl-feedback show correct';
+    fb.textContent = `✨ ${word} — Correct!`;
+  } else {
+    fb.className = 'wl-feedback show wrong';
+    fb.textContent = `❌ Not quite! The word was: ${word}`;
+  }
+}
+
+function drawWlLines() {
+  const svg     = document.getElementById('wl-svg');
+  const svgArea = document.getElementById('wl-svg-area');
+  svg.innerHTML = '';
+  const svgRect = svgArea.getBoundingClientRect();
+
+  Object.entries(wlMatches).forEach(([lIdx, rPairIdx]) => {
+    const lEl = document.querySelector(`#wl-left .wl-item[data-idx="${lIdx}"]`);
+    const rEl = document.querySelector(`#wl-right .wl-item[data-pairidx="${rPairIdx}"]`);
+    if (!lEl || !rEl) return;
+    const lR = lEl.getBoundingClientRect(), rR = rEl.getBoundingClientRect();
+    const x1 = lR.right - svgRect.left, y1 = lR.top + lR.height / 2 - svgRect.top;
+    const x2 = rR.left  - svgRect.left, y2 = rR.top + rR.height / 2 - svgRect.top;
+    const ok      = parseInt(lIdx) === rPairIdx;
+    const lEl2    = document.querySelector(`#wl-left .wl-item[data-idx="${lIdx}"]`);
+    const pending = lEl2 && lEl2.classList.contains('matched-pending');
+    const color   = pending ? '#AAAAAA' : (ok ? '#6BCB77' : '#FF6B6B');
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', x1); line.setAttribute('y1', y1);
+    line.setAttribute('x2', x2); line.setAttribute('y2', y2);
+    line.setAttribute('stroke', color);
+    line.setAttribute('stroke-width', '3');
+    line.setAttribute('stroke-linecap', 'round');
+    line.setAttribute('opacity', '0.85');
+    svg.appendChild(line);
+  });
+}
+
+function updateWlProgress() {
+  const totalDone = wlRound * WL_PER_ROUND + Object.keys(wlMatches).length;
+  const total     = WL_ROUNDS * WL_PER_ROUND;
+  document.getElementById('wl-counter').textContent    = `Round ${wlRound + 1}/${WL_ROUNDS}  •  ${totalDone}/${total}`;
+  document.getElementById('wl-progress-bar').style.width = (totalDone / total * 100) + '%';
+}
+
+function finishWordLink() {
+  const s      = quizState['word-link'];
+  const total  = WL_ROUNDS * WL_PER_ROUND;
+  const passed = wlTotalCorrect === total;
+  const score  = Math.round(wlTotalCorrect / total * 100);
+
+  s.scores.push(score);
+  if (passed && !s.passed) { s.passed = true; updateHomeButtons(); }
+  saveState();
+
+  currentGame = 'word-link';
+  gameCorrect = wlTotalCorrect;
+  showScreen('result-screen');
+  document.getElementById('result-score').textContent = `${wlTotalCorrect} / ${total}`;
+
+  let emoji, stars, title, msg;
+  if (passed) {
+    emoji = '🏆'; stars = '⭐⭐⭐'; title = 'Perfect!'; msg = 'All 20 words linked! 🎉';
+    launchConfetti();
+  } else if (wlTotalCorrect >= 15) {
+    emoji = '🎉'; stars = '⭐⭐'; title = 'Great job!'; msg = 'So close — keep practising!';
+  } else {
+    emoji = '💪'; stars = '⭐'; title = 'Keep going!'; msg = 'Practice makes perfect!';
+  }
+
+  document.getElementById('result-emoji').textContent = emoji;
+  document.getElementById('result-stars').textContent = stars;
+  document.getElementById('result-title').textContent = title;
+  document.getElementById('result-msg').textContent   = msg;
+  document.getElementById('result-attempts').textContent = '';
+  document.getElementById('play-again-btn').style.display = 'block';
+}
+
+</script>
+</body>
+</html>
