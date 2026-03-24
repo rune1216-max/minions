@@ -138,7 +138,7 @@
   }
   .char-tile.blank { border-color: var(--theme-gradient-b); background: var(--theme-light); color: var(--theme-gradient-b); font-size: 2.2rem; }
 
-  .word-pair { display: flex; align-items: center; justify-content: center; gap: 16px; flex-wrap: wrap; }
+  .word-pair { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; }
   .char-bubble {
     font-family: 'Noto Sans SC', sans-serif; font-size: 2.8rem; font-weight: 900;
     background: linear-gradient(135deg, #f8f9fa, #fff); border: 3px solid #e9ecef;
@@ -623,35 +623,42 @@ function generateQuestions(type) {
     // Build a lookup: word string -> meaning
     const meaningMap = {};
     wordData.forEach(d => { meaningMap[d.word] = d.meaning; });
-    // Build set of ALL known two-char words for ambiguity checking
-    const allWordSet = new Set(wordData.map(d => d.word));
+    // Build set of ALL known 2-char words for ambiguity checking
+    const allWordSet = new Set(wordData.map(d => d.word).filter(w => [...w].length === 2));
 
-    // Collect eligible questions: charData items that have at least one 2-char word
-    const eligible = shuffle(charData.filter(item =>
-      item.words && item.words.some(w => [...w].length === 2)
-    ));
+    // Only use words that are exactly 2 characters AND exist in wordData (have a meaning)
+    // Build candidate pool from wordData directly — only genuine 2-char entries
+    const twoCharWords = wordData.filter(d => [...d.word].length === 2);
+    if (twoCharWords.length < 4) { alert('Need at least 4 two-character words!'); return []; }
 
     const qs = [];
-    for (const item of eligible) {
+    const used = new Set();
+    for (const wordEntry of shuffle(twoCharWords)) {
       if (qs.length >= QUESTIONS_PER_GAME) break;
-      // Pick a valid 2-char word starting with this character
-      const validWords = item.words.filter(w => [...w].length === 2 && [...w][0] === item.character);
-      if (validWords.length === 0) continue;
-      const word    = validWords[Math.floor(Math.random() * validWords.length)];
-      const chars   = [...word];
-      const charA   = chars[0];
-      const correct = chars[1];
-      const meaning = meaningMap[word] || '';
+      if (used.has(wordEntry.word)) continue;
+      used.add(wordEntry.word);
 
-      // Pick 3 wrong second chars: must NOT form a known word with charA
-      const wrongPool = shuffle(charData.filter(d =>
-        d.character !== correct &&
-        !allWordSet.has(charA + d.character)
-      ));
+      const chars   = [...wordEntry.word];  // exactly 2 chars
+      const meaning = wordEntry.meaning || '';
+
+      // Randomly blank the FIRST or SECOND character
+      const blankPos = Math.random() < 0.5 ? 0 : 1;
+      const shown    = chars[1 - blankPos];   // the visible character
+      const correct  = chars[blankPos];       // the answer
+
+      // Wrong options: must NOT form a known 2-char word when combined with 'shown'
+      const wrongPool = shuffle(charData.filter(d => {
+        if (d.character === correct) return false;
+        // Ensure the wrong char doesn't accidentally make a real word
+        const formed = blankPos === 0
+          ? d.character + shown   // wrong char is first
+          : shown + d.character;  // wrong char is second
+        return !allWordSet.has(formed);
+      }));
       if (wrongPool.length < 3) continue;
       const wrongChars = wrongPool.slice(0, 3).map(d => d.character);
       const options    = shuffle([correct, ...wrongChars]);
-      qs.push({ item, type, charA, correct, meaning, options });
+      qs.push({ item: wordEntry, type, word: wordEntry.word, chars, blankPos, shown, correct, meaning, options });
     }
     return qs;
   }
@@ -708,10 +715,25 @@ function renderQuestion() {
     }
   } else if (q.type==='word-pair') {
     document.getElementById('game-title').textContent = '🔤 Word Pair';
-    labelEl.textContent = 'Which character completes the word?';
-    charEl.style.display = pinEl.style.display = hintEl.style.display = 'none';
+    charEl.style.display = pinEl.style.display = 'none';
     wpDisp.style.display = 'flex';
-    wpDisp.innerHTML = `<div class="char-bubble">${q.charA}</div><div class="plus-sign">+</div><div class="char-bubble" style="border-color:var(--theme-primary);background:var(--theme-light);color:var(--theme-primary);font-size:2.5rem;">？</div>`;
+    // Show the blank in the correct position (first or second)
+    const blankBubble = `<div class="char-bubble" style="border-color:var(--theme-primary);background:var(--theme-light);color:var(--theme-primary);font-size:2.5rem;">？</div>`;
+    const shownBubble = `<div class="char-bubble">${q.shown}</div>`;
+    const meaningLine = q.meaning
+      ? `<div style="width:100%;text-align:center;margin-top:10px;font-size:1.25rem;color:#555;font-weight:700;">💡 ${q.meaning}</div>`
+      : '';
+    if (q.blankPos === 0) {
+      // Blank is the FIRST character
+      labelEl.textContent = 'Which character starts this word?';
+      wpDisp.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;">${blankBubble}<div class="plus-sign">+</div>${shownBubble}</div>${meaningLine}`;
+    } else {
+      // Blank is the SECOND character
+      labelEl.textContent = 'Which character completes this word?';
+      wpDisp.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;">${shownBubble}<div class="plus-sign">+</div>${blankBubble}</div>${meaningLine}`;
+    }
+    // Hide the standalone hint element (meaning is now inside wpDisp)
+    hintEl.style.display = 'none';
     optCont.style.display = '';
     ynCont.style.display  = 'none';
     renderOptions(q.options, q.correct, 'character');
@@ -759,9 +781,11 @@ function selectOption(btn, chosen, answer) {
   if (isCorrect) {
     totalScore+=10; gameCorrect++; updateScoreBadge();
     const q = questions[currentQ];
-    // For word-pair, show meaning for 2s then auto-advance
-    if (q && q.type === 'word-pair' && q.meaning) {
-      showFeedback(true, answer, `${q.charA}${q.correct} = ${q.meaning}`);
+    // For word-pair, show the complete word + meaning then auto-advance
+    if (q && q.type === 'word-pair') {
+      const fullWord = q.word || (q.blankPos === 0 ? q.correct + q.shown : q.shown + q.correct);
+      const meaningPart = q.meaning ? ` = ${q.meaning}` : '';
+      showFeedback(true, answer, `${fullWord}${meaningPart}`);
       setTimeout(nextQuestion, 2000);
     } else {
       showFeedback(true, answer);
@@ -1171,7 +1195,7 @@ function finishWordLink() {
   document.getElementById('result-attempts').textContent = '';
   document.getElementById('play-again-btn').style.display = 'block';
 }
-     
+
 </script>
 </body>
 </html>
