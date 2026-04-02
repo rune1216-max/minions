@@ -459,7 +459,7 @@ function loadCachedData() {
   try {
     const raw = localStorage.getItem('chineseAppData');
     if (!raw) {
-      status.textContent = '点击下方按钮加载题目数据 👇';
+      status.textContent = '⏳ 正在加载题目数据...';
       status.className = '';
       return;
     }
@@ -474,7 +474,7 @@ function loadCachedData() {
       updateHomeButtons();
     }
   } catch(e) {
-    status.textContent = '点击下方按钮加载题目数据 👇';
+    status.textContent = '⏳ 正在加载题目数据...';
     status.className = '';
   }
 }
@@ -484,8 +484,6 @@ async function loadFromGoogleSheets() {
   const refreshBtn = document.getElementById('refresh-btn');
   status.textContent = '⏳ 加载中...'; status.className = '';
   if (refreshBtn) { refreshBtn.disabled = true; refreshBtn.textContent = '⏳ 加载中...'; }
-  // Disable data-dependent games while loading
-  document.querySelectorAll('.game-btn:not([data-game="word-link"])').forEach(b => b.disabled = true);
 
   const url = 'https://script.google.com/macros/s/AKfycbxgh46y5Aczzjow6kG6ogHYFdmNhDo8D_dNXlvze8WggTsdw9VS-_BRgJhLO-6Cot8/exec';
 
@@ -562,6 +560,7 @@ function loadViaJSONP(url) {
 
 function processData(data) {
   const status = document.getElementById('data-status');
+  const refreshBtn = document.getElementById('refresh-btn');
 
   const [charHeader, ...charData_rows] = data.chars;
   const ci = charHeader.map(h => String(h).toLowerCase().trim());
@@ -578,8 +577,12 @@ function processData(data) {
     meaning: String(r[wi.indexOf('meaning')] || '').trim(),
   })).filter(r => r.word && r.meaning);
 
-  status.textContent = `✅ Loaded ${charData.length} characters & ${wordData.length} words`;
+  // 保存到 localStorage 供下次使用
+  try { localStorage.setItem('chineseAppData', JSON.stringify({ charData, wordData, savedAt: Date.now() })); } catch(e) {}
+
+  status.textContent = `✅ 已加载 ${charData.length} 个汉字 & ${wordData.length} 个词语`;
   status.className = 'ok';
+  if (refreshBtn) { refreshBtn.disabled = false; refreshBtn.textContent = '🔄 重新加载'; }
   updateHomeButtons();
 }
 
@@ -589,6 +592,10 @@ document.addEventListener('DOMContentLoaded', () => {
   loadState();
   loadCachedData();
   updateHomeButtons();
+  // 没有缓存数据时自动加载（手机第一次打开）
+  if (charData.length === 0 && wordData.length === 0) {
+    loadFromGoogleSheets();
+  }
 });
 
 function shuffle(arr) { return [...arr].sort(() => Math.random() - 0.5); }
