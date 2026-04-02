@@ -85,8 +85,8 @@
 
   .game-btn[data-game="char-pinyin-mix"] { border-color: #FF6B6B; }
   .game-btn[data-game="char-pinyin-mix"]:hover:not(:disabled) { background: #fff0f0; }
-  .game-btn[data-game="word-pair"]  { border-color: #4D96FF; }
-  .game-btn[data-game="word-pair"]:hover:not(:disabled)  { background: #f0f5ff; }
+  .game-btn[data-game="listen-pinyin"]  { border-color: #4D96FF; }
+  .game-btn[data-game="listen-pinyin"]:hover:not(:disabled)  { background: #f0f5ff; }
   .game-btn[data-game="meaning-match"] { border-color: #6BCB77; }
   .game-btn[data-game="meaning-match"]:hover:not(:disabled) { background: #f0fff3; }
   .game-btn[data-game="fill-blank"] { border-color: #C77DFF; }
@@ -278,11 +278,11 @@
         <span class="sub">Match both ways</span>
         <span class="attempts" id="att-char-pinyin-mix"></span>
       </button>
-      <button class="game-btn" data-game="word-pair" onclick="startGame('word-pair')">
-        <span class="icon">汉+汉</span>
-        <span class="label">Word Pair?</span>
-        <span class="sub">Do they make a word?</span>
-        <span class="attempts" id="att-word-pair"></span>
+      <button class="game-btn" data-game="listen-pinyin" onclick="startGame('listen-pinyin')">
+        <span class="icon">🔊→汉</span>
+        <span class="label">Listen & Pick</span>
+        <span class="sub">Hear it, find the character!</span>
+        <span class="attempts" id="att-listen-pinyin"></span>
       </button>
       <button class="game-btn" data-game="meaning-match" onclick="startGame('meaning-match')">
         <span class="icon">汉→🌍</span>
@@ -414,8 +414,8 @@ let totalScore = 0, gameCorrect = 0, currentGame = '';
 let questions = [], currentQ = 0, answered = false;
 const QUESTIONS_PER_GAME = 10;
 
-const QUIZ_ORDER = ['char-pinyin-mix','word-pair','meaning-match','fill-blank','word-link'];
-const QUIZ_NAMES = { 'char-pinyin-mix':'Char & Pinyin','word-pair':'Word Pair','meaning-match':'Word Match','fill-blank':'Fill the Blank','word-link':'Word Link' };
+const QUIZ_ORDER = ['char-pinyin-mix','listen-pinyin','meaning-match','fill-blank','word-link'];
+const QUIZ_NAMES = { 'char-pinyin-mix':'Char & Pinyin','listen-pinyin':'Listen & Pick','meaning-match':'Word Match','fill-blank':'Fill the Blank','word-link':'Word Link' };
 
 const quizState = {};
 QUIZ_ORDER.forEach(g => quizState[g] = { passed: false, scores: [] });
@@ -599,7 +599,7 @@ function startGame(type) {
   if (type === 'word-link') { startWordLink(); return; }
   if ((type==='meaning-match'||type==='fill-blank') && wordData.length<4) { alert('Need at least 4 words!'); return; }
   if (type==='char-pinyin-mix' && charData.length<5) { alert('Need at least 5 characters!'); return; }
-  if (type==='word-pair' && wordData.length<4) { alert('Need at least 4 words to play Word Pair!'); return; }
+  if (type==='listen-pinyin' && charData.length<4) { alert('Need at least 4 characters!'); return; }
   currentGame = type; currentQ = 0; gameCorrect = 0; answered = false;
   questions = generateQuestions(type);
   showScreen('game-screen'); updateScoreBadge(); renderQuestion();
@@ -619,48 +619,11 @@ function generateQuestions(type) {
       }
     });
   }
-  if (type === 'word-pair') {
-    // Build a lookup: word string -> meaning
-    const meaningMap = {};
-    wordData.forEach(d => { meaningMap[d.word] = d.meaning; });
-    // Build set of ALL known 2-char words for ambiguity checking
-    const allWordSet = new Set(wordData.map(d => d.word).filter(w => [...w].length === 2));
-
-    // Only use words that are exactly 2 characters AND exist in wordData (have a meaning)
-    // Build candidate pool from wordData directly — only genuine 2-char entries
-    const twoCharWords = wordData.filter(d => [...d.word].length === 2);
-    if (twoCharWords.length < 4) { alert('Need at least 4 two-character words!'); return []; }
-
-    const qs = [];
-    const used = new Set();
-    for (const wordEntry of shuffle(twoCharWords)) {
-      if (qs.length >= QUESTIONS_PER_GAME) break;
-      if (used.has(wordEntry.word)) continue;
-      used.add(wordEntry.word);
-
-      const chars   = [...wordEntry.word];  // exactly 2 chars
-      const meaning = wordEntry.meaning || '';
-
-      // Randomly blank the FIRST or SECOND character
-      const blankPos = Math.random() < 0.5 ? 0 : 1;
-      const shown    = chars[1 - blankPos];   // the visible character
-      const correct  = chars[blankPos];       // the answer
-
-      // Wrong options: must NOT form a known 2-char word when combined with 'shown'
-      const wrongPool = shuffle(charData.filter(d => {
-        if (d.character === correct) return false;
-        // Ensure the wrong char doesn't accidentally make a real word
-        const formed = blankPos === 0
-          ? d.character + shown   // wrong char is first
-          : shown + d.character;  // wrong char is second
-        return !allWordSet.has(formed);
-      }));
-      if (wrongPool.length < 3) continue;
-      const wrongChars = wrongPool.slice(0, 3).map(d => d.character);
-      const options    = shuffle([correct, ...wrongChars]);
-      qs.push({ item: wordEntry, type, word: wordEntry.word, chars, blankPos, shown, correct, meaning, options });
-    }
-    return qs;
+  if (type === 'listen-pinyin') {
+    return shuffle(charData).slice(0, QUESTIONS_PER_GAME).map(item => {
+      const wrong = shuffle(charData.filter(d => d.character !== item.character)).slice(0, 3).map(d => d.character);
+      return { item, type, answer: item.character, options: shuffle([item.character, ...wrong]) };
+    });
   }
   if (type === 'meaning-match') {
     return shuffle(wordData).slice(0, QUESTIONS_PER_GAME).map(item => {
@@ -686,8 +649,65 @@ function generateQuestions(type) {
   }
 }
 
+// ── LISTEN & PICK — speech ─────────────────────────────────────────────────
+let lpVoice = null;
+
+function lpInitVoice() {
+  if (lpVoice) return;
+  const all = speechSynthesis.getVoices();
+  // Prefer Microsoft zh-CN, fallback to Google, then any zh
+  lpVoice = all.find(v => v.name.includes('Microsoft') && v.lang === 'zh-CN')
+    || all.find(v => v.lang === 'zh-CN')
+    || all.find(v => v.lang.startsWith('zh'))
+    || null;
+}
+
+speechSynthesis.onvoiceschanged = lpInitVoice;
+
+function lpSpeak() {
+  lpInitVoice();
+  const q = questions[currentQ];
+  if (!q || q.type !== 'listen-pinyin') return;
+  speechSynthesis.cancel();
+
+  const btn  = document.getElementById('lp-play-btn');
+  const hint = document.getElementById('lp-hint');
+  if (btn)  { btn.textContent = '🔉'; btn.style.opacity = '0.7'; }
+  if (hint) hint.textContent = 'Playing...';
+
+  const done = () => {
+    if (btn)  { btn.textContent = '🔊'; btn.style.opacity = '1'; }
+    if (hint) hint.textContent = 'Tap to hear again';
+  };
+
+  // First: character at normal speed in Mandarin
+  const u1 = new SpeechSynthesisUtterance(q.item.character);
+  u1.lang  = 'zh-CN';
+  u1.rate  = 0.6;
+  u1.pitch = 1.0;
+  if (lpVoice) u1.voice = lpVoice;
+
+  // Second: same character slower for clarity
+  const u2 = new SpeechSynthesisUtterance(q.item.character);
+  u2.lang  = 'zh-CN';
+  u2.rate  = 0.35;
+  u2.pitch = 1.0;
+  if (lpVoice) u2.voice = lpVoice;
+
+  u1.onend   = () => speechSynthesis.speak(u2);
+  u2.onend   = done;
+  u1.onerror = done;
+  u2.onerror = done;
+
+  speechSynthesis.speak(u1);
+}
+
 function renderQuestion() {
   const q = questions[currentQ]; answered = false;
+  // Clean up listen-pinyin speaker button if present
+  const oldSpeaker = document.getElementById('lp-speaker');
+  if (oldSpeaker) oldSpeaker.remove();
+  speechSynthesis.cancel();
   document.getElementById('progress-bar').style.width = (currentQ/QUESTIONS_PER_GAME*100)+'%';
   document.getElementById('q-counter').textContent = `${currentQ+1} / ${QUESTIONS_PER_GAME}`;
   document.getElementById('feedback').className = 'feedback';
@@ -713,30 +733,35 @@ function renderQuestion() {
       pinEl.textContent=q.item.pinyin; pinEl.style.fontSize='2.5rem'; hintEl.textContent='';
       renderOptions(q.options, q.answer, 'character');
     }
-  } else if (q.type==='word-pair') {
-    document.getElementById('game-title').textContent = '🔤 Word Pair';
-    charEl.style.display = pinEl.style.display = 'none';
-    wpDisp.style.display = 'flex';
-    // Show the blank in the correct position (first or second)
-    const blankBubble = `<div class="char-bubble" style="border-color:var(--theme-primary);background:var(--theme-light);color:var(--theme-primary);font-size:2.5rem;">？</div>`;
-    const shownBubble = `<div class="char-bubble">${q.shown}</div>`;
-    const meaningLine = q.meaning
-      ? `<div style="width:100%;text-align:center;margin-top:10px;font-size:1.25rem;color:#555;font-weight:700;">💡 ${q.meaning}</div>`
-      : '';
-    if (q.blankPos === 0) {
-      // Blank is the FIRST character
-      labelEl.textContent = 'Which character starts this word?';
-      wpDisp.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;">${blankBubble}<div class="plus-sign">+</div>${shownBubble}</div>${meaningLine}`;
-    } else {
-      // Blank is the SECOND character
-      labelEl.textContent = 'Which character completes this word?';
-      wpDisp.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;">${shownBubble}<div class="plus-sign">+</div>${blankBubble}</div>${meaningLine}`;
-    }
-    // Hide the standalone hint element (meaning is now inside wpDisp)
+  } else if (q.type==='listen-pinyin') {
+    document.getElementById('game-title').textContent = '🔊 Listen & Pick';
+    labelEl.textContent = 'Which character did you hear?';
+    charEl.style.display = 'none';
+    pinEl.style.display = 'none';
     hintEl.style.display = 'none';
-    optCont.style.display = '';
-    ynCont.style.display  = 'none';
-    renderOptions(q.options, q.correct, 'character');
+    wpDisp.style.display = 'none';
+    wfDisp.style.display = 'none';
+    // Big speaker button in the question card
+    const speakerDiv = document.createElement('div');
+    speakerDiv.id = 'lp-speaker';
+    speakerDiv.style.cssText = 'text-align:center;padding:16px 0 8px;';
+    speakerDiv.innerHTML = `
+      <button id="lp-play-btn" onclick="lpSpeak()" style="
+        background:linear-gradient(135deg,var(--theme-gradient-b),var(--theme-gradient-a));
+        color:#fff;border:none;border-radius:50%;width:90px;height:90px;
+        font-size:2.4rem;cursor:pointer;transition:all 0.18s;
+        box-shadow:0 4px 16px var(--header-shadow);
+      ">🔊</button>
+      <div id="lp-hint" style="margin-top:10px;font-size:0.9rem;color:#aaa;font-weight:600;">Tap to listen</div>
+    `;
+    // Insert after the question card
+    const qCard = document.querySelector('.question-card');
+    const existing = document.getElementById('lp-speaker');
+    if (existing) existing.remove();
+    qCard.appendChild(speakerDiv);
+    renderOptions(q.options, q.answer, 'character');
+    // Auto-play after short delay
+    setTimeout(lpSpeak, 400);
   } else if (q.type==='meaning-match') {
     document.getElementById('game-title').textContent = '🌍 Word Match';
     if (q.dir==='word-to-meaning') {
@@ -781,12 +806,9 @@ function selectOption(btn, chosen, answer) {
   if (isCorrect) {
     totalScore+=10; gameCorrect++; updateScoreBadge();
     const q = questions[currentQ];
-    // For word-pair, show the complete word + meaning then auto-advance
-    if (q && q.type === 'word-pair') {
-      const fullWord = q.word || (q.blankPos === 0 ? q.correct + q.shown : q.shown + q.correct);
-      const meaningPart = q.meaning ? ` = ${q.meaning}` : '';
-      showFeedback(true, answer, `${fullWord}${meaningPart}`);
-      setTimeout(nextQuestion, 2000);
+    if (q && q.type === 'listen-pinyin') {
+      showFeedback(true, null, `${q.item.character} = ${q.item.pinyin}`);
+      setTimeout(nextQuestion, 1200);
     } else {
       showFeedback(true, answer);
       setTimeout(nextQuestion, 800);
