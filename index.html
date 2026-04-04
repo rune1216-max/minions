@@ -4,6 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>🐰 Learn Chinese!</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#FF6B6B">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="学中文">
+<link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2663/2663067.png">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700;900&display=swap');
 
@@ -83,16 +90,9 @@
   .game-btn .sub { font-size: 0.8rem; color: #999; display: block; margin-top: 3px; }
   .game-btn .attempts { font-size: 0.78rem; margin-top: 5px; display: block; font-weight: 700; }
 
-  .game-btn[data-game="char-pinyin-mix"] { border-color: #FF6B6B; }
-  .game-btn[data-game="char-pinyin-mix"]:hover:not(:disabled) { background: #fff0f0; }
-  .game-btn[data-game="listen-pinyin"]  { border-color: #4D96FF; }
-  .game-btn[data-game="listen-pinyin"]:hover:not(:disabled)  { background: #f0f5ff; }
-  .game-btn[data-game="meaning-match"] { border-color: #6BCB77; }
-  .game-btn[data-game="meaning-match"]:hover:not(:disabled) { background: #f0fff3; }
-  .game-btn[data-game="fill-blank"] { border-color: #C77DFF; }
-  .game-btn[data-game="fill-blank"]:hover:not(:disabled) { background: #f8f0ff; }
-  .game-btn[data-game="word-link"]  { border-color: #FF9A3C; grid-column: 1 / -1; }
-  .game-btn[data-game="word-link"]:hover:not(:disabled)  { background: #fff8f0; }
+  /* Rainbow borders applied dynamically via JS */
+  .game-btn { --btn-color: #ccc; --btn-bg: #fafafa; border-color: var(--btn-color); }
+  .game-btn:hover:not(:disabled) { background: var(--btn-bg); }
 
   /* GREEN passed state — icon glows green */
   .game-btn.passed { border-color: #6BCB77 !important; background: #f0fff3 !important; }
@@ -248,10 +248,93 @@
   .wl-submit-btn:hover:not(:disabled) { transform: scale(1.02); }
   .wl-submit-btn:disabled { opacity: 0.5; cursor: default; }
 
+  /* ── ODD ONE OUT ── */
+  .ooo-grid {
+    display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 10px;
+  }
+  .ooo-btn {
+    background: var(--card); border: 3px solid #e9ecef; border-radius: 18px;
+    padding: 20px 10px; cursor: pointer; transition: all 0.18s;
+    text-align: center; box-shadow: 0 4px 12px rgba(0,0,0,0.06);
+  }
+  .ooo-btn .ooo-char {
+    font-family: 'Noto Sans SC', sans-serif; font-size: 3rem; font-weight: 900;
+    display: block; line-height: 1.1;
+  }
+  .ooo-btn:hover:not(:disabled) { border-color: var(--theme-primary); background: var(--theme-light); transform: scale(1.04); }
+  .ooo-btn.correct { border-color: #6BCB77 !important; background: #f0fff3 !important; }
+  .ooo-btn.correct .ooo-char { color: #3aaa5c; }
+  .ooo-btn.wrong   { border-color: #FF4E4E !important; background: #fff0f0 !important; }
+  .ooo-btn.wrong   .ooo-char { color: #FF4E4E; }
+  .ooo-btn:disabled { cursor: default; }
+  .ooo-reveal { font-size: 0.88rem; color: #aaa; display: block; margin-top: 6px; font-weight: 600; }
+
+  /* ── WORD CHAIN ── */
+  .wc-chain-display {
+    background: var(--card); border-radius: var(--radius);
+    padding: 20px 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.08); margin-bottom: 14px;
+  }
+  .wc-chain-steps {
+    display: flex; align-items: center; gap: 10px;
+    justify-content: center; margin: 14px 0 8px;
+  }
+  /* 每个"词"是两个字格并排 */
+  .wc-word {
+    display: flex; gap: 4px;
+  }
+  /* 单个字格 */
+  .wc-char {
+    font-family: 'Noto Sans SC', sans-serif; font-size: 1.8rem; font-weight: 900;
+    width: 54px; height: 54px; border-radius: 12px; border: 3px solid #e9ecef;
+    display: flex; align-items: center; justify-content: center;
+    background: #f8f9fa; transition: all 0.3s;
+  }
+  .wc-char.anchor   { border-color: #4D96FF; background: #f0f5ff; color: #2a6fd4; }
+  .wc-char.hidden   { border-color: #e9ecef; background: #f0f0f0; color: #ccc;
+                      border-style: dashed; font-size: 1.4rem; }
+  .wc-char.bridge   { border-color: var(--theme-primary); background: var(--theme-light);
+                      color: var(--theme-primary); border-style: dashed;
+                      animation: pulse 1.2s infinite; }
+  .wc-char.correct  { border-color: #6BCB77 !important; background: #f0fff3 !important;
+                      color: #3aaa5c !important; animation: none !important; border-style: solid !important; }
+  .wc-char.wrong-reveal { border-color: #FF4E4E !important; background: #fff0f0 !important;
+                           color: #FF4E4E !important; animation: none !important; border-style: solid !important; }
+  .wc-char.revealed { border-color: #6BCB77; background: #f0fff3; color: #3aaa5c; border-style: solid; }
+
+  .wc-arrow { font-size: 1.4rem; color: #bbb; font-weight: 700; flex-shrink: 0; }
+  @keyframes pulse { 0%,100%{box-shadow:0 0 0 0 rgba(255,107,107,0.3)} 50%{box-shadow:0 0 0 7px rgba(255,107,107,0)} }
+
+  .wc-hint {
+    text-align: center; font-size: 0.88rem; color: #aaa; font-weight: 600;
+    margin-top: 2px; min-height: 1.4em;
+  }
+  .wc-counter-label { text-align:center; font-size:0.82rem; color:#bbb; margin-top:4px; font-weight:600; }
+
+  .wc-options { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 4px; }
+  .wc-opt-btn {
+    background: var(--card); border: 3px solid #e9ecef; border-radius: 14px;
+    padding: 14px 10px; cursor: pointer; text-align: center; transition: all 0.18s;
+    font-family: 'Noto Sans SC', sans-serif; font-size: 1.6rem; font-weight: 900;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  }
+  .wc-opt-btn:hover:not(:disabled) { border-color: var(--theme-primary); background: var(--theme-light); transform: scale(1.04); }
+  .wc-opt-btn.correct { border-color: #6BCB77 !important; background: #f0fff3 !important; color: #3aaa5c; }
+  .wc-opt-btn.wrong   { border-color: #FF4E4E !important; background: #fff0f0 !important; color: #FF4E4E; }
+  .wc-opt-btn:disabled { cursor: default; opacity: 0.7; }
+
+  .wc-feedback { text-align:center; padding:12px; border-radius:14px; font-weight:800; font-size:1rem; margin-top:10px; display:none; }
+  .wc-feedback.show { display:block; }
+  .wc-feedback.correct { background:#f0fff3; color:#6BCB77; }
+  .wc-feedback.wrong   { background:#fff0f0; color:#FF4E4E; }
+  .wc-instruction { text-align:center; font-size:0.88rem; color:#999; margin-bottom:4px; font-weight:600; line-height:1.5; }
+
   @media (max-width: 480px) {
     .q-chinese { font-size: 3.5rem; }
     .options-grid { grid-template-columns: 1fr; }
     .wl-item { font-size: 1.2rem; padding: 10px 5px; }
+    .ooo-btn .ooo-char { font-size: 2.2rem; }
+    .wc-step { font-size: 1.1rem; padding: 8px 10px; min-width: 58px; }
+    .wc-opt-btn { font-size: 1.3rem; }
   }
 </style>
 </head>
@@ -272,17 +355,23 @@
       <p>Pick a game and start learning Chinese!</p>
     </div>
     <div class="game-grid">
-      <button class="game-btn" data-game="char-pinyin-mix" onclick="startGame('char-pinyin-mix')">
-        <span class="icon">汉↔pīn</span>
-        <span class="label">Char & Pinyin</span>
-        <span class="sub">Match both ways</span>
-        <span class="attempts" id="att-char-pinyin-mix"></span>
+      <button class="game-btn" data-game="odd-one-out" onclick="startGame('odd-one-out')">
+        <span class="icon">🎯</span>
+        <span class="label">Odd One Out</span>
+        <span class="sub">Find the different tone!</span>
+        <span class="attempts" id="att-odd-one-out"></span>
       </button>
       <button class="game-btn" data-game="listen-pinyin" onclick="startGame('listen-pinyin')">
         <span class="icon">🔊→汉</span>
         <span class="label">Listen & Pick</span>
         <span class="sub">Hear it, find the character!</span>
         <span class="attempts" id="att-listen-pinyin"></span>
+      </button>
+      <button class="game-btn" data-game="char-pinyin-mix" onclick="startGame('char-pinyin-mix')">
+        <span class="icon">汉↔pīn</span>
+        <span class="label">Char & Pinyin</span>
+        <span class="sub">Match both ways</span>
+        <span class="attempts" id="att-char-pinyin-mix"></span>
       </button>
       <button class="game-btn" data-game="meaning-match" onclick="startGame('meaning-match')">
         <span class="icon">汉→🌍</span>
@@ -301,6 +390,12 @@
         <span class="label">Word Link</span>
         <span class="sub">Connect characters to make words!</span>
         <span class="attempts" id="att-word-link"></span>
+      </button>
+      <button class="game-btn" data-game="word-chain" onclick="startGame('word-chain')">
+        <span class="icon">⛓️</span>
+        <span class="label">Word Chain</span>
+        <span class="sub">Find the bridge word!</span>
+        <span class="attempts" id="att-word-chain"></span>
       </button>
     </div>
     <div style="display:flex; gap:10px; align-items:center; justify-content:center; flex-wrap:wrap; margin-top:4px;">
@@ -356,6 +451,24 @@
     <button class="wl-submit-btn" id="wl-done-btn" onclick="finishWordLink()" disabled>✅ Done!</button>
   </div>
 
+  <!-- WORD CHAIN SCREEN -->
+  <div id="word-chain-screen" class="screen">
+    <button class="back-btn" onclick="goHome()">← Back</button>
+    <div class="game-header">
+      <span class="game-title">⛓️ Word Chain</span>
+      <div class="progress-wrap"><div class="progress-bar" id="wc-progress-bar" style="width:0%"></div></div>
+      <span class="q-counter" id="wc-counter">1 / 8</span>
+    </div>
+    <div class="wc-chain-display">
+      <div class="wc-instruction" id="wc-instruction"></div>
+      <div class="wc-chain-steps" id="wc-chain-steps"></div>
+      <div class="wc-hint" id="wc-hint"></div>
+      <div class="wc-counter-label" id="wc-counter-label"></div>
+    </div>
+    <div class="wc-options" id="wc-options"></div>
+    <div class="wc-feedback" id="wc-feedback"></div>
+  </div>
+
   <!-- RESULT -->
   <div id="result-screen" class="screen">
     <div class="result-card">
@@ -402,6 +515,22 @@ function applyTheme() {
   document.getElementById('home-animal').textContent  = a;
   document.getElementById('header-title').textContent = `${a} Learn Chinese!`;
   document.title = `${a} Learn Chinese!`;
+
+  // Rainbow border colors cycling through buttons
+  const RAINBOW = [
+    { color: '#FF6B6B', bg: '#fff0f0' },
+    { color: '#FF9A3C', bg: '#fff8f0' },
+    { color: '#FFD93D', bg: '#fffdf0' },
+    { color: '#6BCB77', bg: '#f0fff3' },
+    { color: '#4D96FF', bg: '#f0f5ff' },
+    { color: '#8B5CF6', bg: '#f5f0ff' },
+    { color: '#EC4899', bg: '#fff0f8' },
+  ];
+  document.querySelectorAll('.game-btn').forEach((btn, i) => {
+    const c = RAINBOW[i % RAINBOW.length];
+    btn.style.setProperty('--btn-color', c.color);
+    btn.style.setProperty('--btn-bg', c.bg);
+  });
 }
 
 // ── DATA ───────────────────────────────────────────────────────────────────
@@ -414,8 +543,8 @@ let totalScore = 0, gameCorrect = 0, currentGame = '';
 let questions = [], currentQ = 0, answered = false;
 const QUESTIONS_PER_GAME = 10;
 
-const QUIZ_ORDER = ['char-pinyin-mix','listen-pinyin','meaning-match','fill-blank','word-link'];
-const QUIZ_NAMES = { 'char-pinyin-mix':'Char & Pinyin','listen-pinyin':'Listen & Pick','meaning-match':'Word Match','fill-blank':'Fill the Blank','word-link':'Word Link' };
+const QUIZ_ORDER = ['odd-one-out','listen-pinyin','char-pinyin-mix','meaning-match','fill-blank','word-link','word-chain'];
+const QUIZ_NAMES = { 'char-pinyin-mix':'Char & Pinyin','listen-pinyin':'Listen & Pick','meaning-match':'Word Match','fill-blank':'Fill the Blank','word-link':'Word Link','odd-one-out':'Odd One Out','word-chain':'Word Chain' };
 
 const quizState = {};
 QUIZ_ORDER.forEach(g => quizState[g] = { passed: false, scores: [] });
@@ -604,6 +733,8 @@ function pinyinBase(p) { return p.normalize('NFD').replace(/[\u0300-\u036f]/g,''
 // ── START GAME ─────────────────────────────────────────────────────────────
 function startGame(type) {
   if (type === 'word-link') { startWordLink(); return; }
+  if (type === 'odd-one-out') { startOddOneOut(); return; }
+  if (type === 'word-chain') { startWordChain(); return; }
   if ((type==='meaning-match'||type==='fill-blank') && wordData.length<4) { alert('Need at least 4 words!'); return; }
   if (type==='char-pinyin-mix' && charData.length<5) { alert('Need at least 5 characters!'); return; }
   if (type==='listen-pinyin' && charData.length<4) { alert('Need at least 4 characters!'); return; }
@@ -710,6 +841,7 @@ function lpSpeak() {
 }
 
 function renderQuestion() {
+  if (currentGame === 'odd-one-out') { renderOooQuestion(); return; }
   const q = questions[currentQ]; answered = false;
   // Clean up listen-pinyin speaker button if present
   const oldSpeaker = document.getElementById('lp-speaker');
@@ -728,7 +860,7 @@ function renderQuestion() {
   charEl.style.fontSize='5rem'; pinEl.style.fontSize='1.6rem';
   wpDisp.style.display=wfDisp.style.display='none';
   optCont.style.display=''; ynCont.style.display='none';
-  optCont.innerHTML=''; ynCont.innerHTML='';
+  optCont.className='options-grid'; optCont.innerHTML=''; ynCont.innerHTML='';
 
   if (q.type==='char-pinyin-mix') {
     document.getElementById('game-title').textContent = '🔀 Char & Pinyin';
@@ -1224,6 +1356,435 @@ function finishWordLink() {
   document.getElementById('result-attempts').textContent = '';
   document.getElementById('play-again-btn').style.display = 'block';
 }
+
+// ══════════════════════════════════════════════════════════════════════════
+// ── ODD ONE OUT ───────────────────────────────────────────────────────────
+// 4 characters shown (no pinyin). 3 share the same tone, 1 is different.
+// Excludes polyphonic characters (pinyin contains '/').
+// ══════════════════════════════════════════════════════════════════════════
+const OOO_QUESTIONS = 10;
+let oooQuestions = [], oooQ = 0, oooCorrect = 0, oooAnswered = false;
+
+function getTone(pinyin) {
+  // Returns tone number 1-4 from diacritic marks, or 5 for neutral
+  const map = {
+    'āáǎà': [1,2,3,4], 'ēéěè': [1,2,3,4], 'īíǐì': [1,2,3,4],
+    'ōóǒò': [1,2,3,4], 'ūúǔù': [1,2,3,4], 'ǖǘǚǜ': [1,2,3,4]
+  };
+  for (const [chars, tones] of Object.entries(map)) {
+    for (let i = 0; i < chars.length; i++) {
+      if (pinyin.includes(chars[i])) return tones[i];
+    }
+  }
+  // Check numeric tones as fallback
+  const numMatch = pinyin.match(/[1-4]/);
+  if (numMatch) return parseInt(numMatch[0]);
+  return 5; // neutral/no tone mark
+}
+
+function buildOooQuestions() {
+  // Filter: no polyphonic (pinyin contains '/'), must have clear tone
+  const eligible = charData.filter(d => !d.pinyin.includes('/') && getTone(d.pinyin) !== 5);
+  if (eligible.length < 8) return [];
+
+  // Group by tone
+  const byTone = {1:[], 2:[], 3:[], 4:[]};
+  eligible.forEach(d => {
+    const t = getTone(d.pinyin);
+    if (byTone[t]) byTone[t].push(d);
+  });
+
+  const qs = [];
+  const shuffledAll = shuffle(eligible);
+
+  for (const item of shuffledAll) {
+    if (qs.length >= OOO_QUESTIONS) break;
+    const oddTone = getTone(item.pinyin);
+    // Pick 3 chars with same tone (different from oddTone)
+    const sameTones = [1,2,3,4].filter(t => t !== oddTone);
+    // Randomly pick one of the same-tone groups for the 3
+    const chosenSameTone = sameTones[Math.floor(Math.random() * sameTones.length)];
+    const sameGroup = shuffle(byTone[chosenSameTone]).filter(d => d.character !== item.character);
+    if (sameGroup.length < 3) continue;
+    const three = sameGroup.slice(0, 3);
+    const four = shuffle([item, ...three]);
+    qs.push({
+      chars: four,
+      answer: item,
+      oddTone,
+      sameTone: chosenSameTone
+    });
+  }
+  return qs;
+}
+
+function startOddOneOut() {
+  if (charData.length < 8) { alert('需要至少8个汉字才能开始！请先加载数据。'); return; }
+  oooQuestions = buildOooQuestions();
+  if (oooQuestions.length < 3) { alert('音调种类不够，无法出题！请确保数据中有多个不同音调的字。'); return; }
+  oooQ = 0; oooCorrect = 0; oooAnswered = false;
+  currentGame = 'odd-one-out';
+  showScreen('game-screen');
+  document.getElementById('game-title').textContent = '🎯 Odd One Out';
+  updateScoreBadge();
+  renderOooQuestion();
+}
+
+function renderOooQuestion() {
+  const q = oooQuestions[oooQ];
+  oooAnswered = false;
+
+  document.getElementById('progress-bar').style.width = (oooQ / OOO_QUESTIONS * 100) + '%';
+  document.getElementById('q-counter').textContent = `${oooQ + 1} / ${OOO_QUESTIONS}`;
+  document.getElementById('feedback').className = 'feedback';
+  document.getElementById('feedback').textContent = '';
+  document.getElementById('next-btn').style.display = 'none';
+
+  const charEl = document.getElementById('q-chinese');
+  const pinEl  = document.getElementById('q-pinyin');
+  const hintEl = document.getElementById('q-hint');
+  const labelEl= document.getElementById('q-label');
+  const wpDisp = document.getElementById('word-pair-display');
+  const wfDisp = document.getElementById('word-fill-display');
+  const optCont= document.getElementById('options-container');
+  const ynCont = document.getElementById('yesno-container');
+
+  charEl.style.display = pinEl.style.display = 'none';
+  wpDisp.style.display = wfDisp.style.display = 'none';
+  ynCont.style.display = 'none';
+  labelEl.textContent = 'Which one has a DIFFERENT tone?';
+  labelEl.style.display = '';
+  hintEl.style.display = '';
+  hintEl.textContent = '三个字同声调，找出不同的那个！No pinyin shown — listen in your head!';
+
+  optCont.style.display = '';
+  optCont.className = 'ooo-grid';
+  optCont.innerHTML = '';
+
+  q.chars.forEach(item => {
+    const btn = document.createElement('button');
+    btn.className = 'ooo-btn';
+    btn.innerHTML = `<span class="ooo-char">${item.character}</span>`;
+    btn.onclick = () => selectOoo(btn, item, q);
+    optCont.appendChild(btn);
+  });
+}
+
+const TONE_NAMES = {1:'1st tone (ˉ)', 2:'2nd tone (ˊ)', 3:'3rd tone (ˇ)', 4:'4th tone (ˋ)', 5:'neutral'};
+
+function selectOoo(btn, chosen, q) {
+  if (oooAnswered) return;
+  oooAnswered = true;
+  const isCorrect = chosen.character === q.answer.character;
+
+  document.querySelectorAll('.ooo-btn').forEach(b => {
+    b.disabled = true;
+    const charText = b.querySelector('.ooo-char').textContent;
+    const isAnswer = charText === q.answer.character;
+    if (isAnswer) {
+      b.classList.add('correct');
+      const rev = document.createElement('span');
+      rev.className = 'ooo-reveal';
+      rev.textContent = q.answer.pinyin + ' (' + TONE_NAMES[q.oddTone] + ')';
+      b.appendChild(rev);
+    } else {
+      // Show pinyin for same-tone chars too
+      const matchItem = q.chars.find(c => c.character === charText);
+      if (matchItem) {
+        const rev = document.createElement('span');
+        rev.className = 'ooo-reveal';
+        rev.textContent = matchItem.pinyin;
+        b.appendChild(rev);
+      }
+    }
+  });
+
+  if (isCorrect) {
+    btn.classList.add('correct');
+    totalScore += 10; oooCorrect++; updateScoreBadge();
+    showFeedback(true, null, `${q.answer.character} = ${q.answer.pinyin} — ${TONE_NAMES[q.oddTone]}!`);
+    setTimeout(() => nextOoo(), 1400);
+  } else {
+    btn.classList.add('wrong');
+    showFeedback(false, null, `Odd one: ${q.answer.character} (${q.answer.pinyin})`);
+    document.getElementById('next-btn').style.display = 'block';
+    document.getElementById('next-btn').onclick = nextOoo;
+  }
+}
+
+function nextOoo() {
+  oooQ++;
+  if (oooQ >= oooQuestions.length) {
+    finishOoo();
+  } else {
+    renderOooQuestion();
+  }
+}
+
+function finishOoo() {
+  const s = quizState['odd-one-out'];
+  const score = Math.round(oooCorrect / oooQuestions.length * 100);
+  s.scores.push(score);
+  const passed = oooCorrect === oooQuestions.length;
+  if (passed && !s.passed) { s.passed = true; updateHomeButtons(); }
+  saveState();
+  currentGame = 'odd-one-out';
+  gameCorrect = oooCorrect;
+  showScreen('result-screen');
+  document.getElementById('result-score').textContent = `${oooCorrect} / ${oooQuestions.length}`;
+  let emoji, stars, title, msg;
+  if (passed) { emoji='🏆'; stars='⭐⭐⭐'; title='Perfect!'; msg='You can hear every tone! 🎉'; launchConfetti(); }
+  else if (oooCorrect >= oooQuestions.length * 0.7) { emoji='🎉'; stars='⭐⭐'; title='Great!'; msg='Almost there — keep practising!'; }
+  else { emoji='💪'; stars='⭐'; title='Keep going!'; msg='Tones take practice — you got this!'; }
+  document.getElementById('result-emoji').textContent   = emoji;
+  document.getElementById('result-stars').textContent   = stars;
+  document.getElementById('result-title').textContent   = title;
+  document.getElementById('result-msg').textContent     = msg;
+  document.getElementById('result-attempts').textContent = '';
+  document.getElementById('play-again-btn').style.display = 'block';
+}
+
+
+// ══════════════════════════════════════════════════════════════════════════
+// ── WORD CHAIN "桥梁词" ───────────────────────────────────────────────────
+// Each question shows:  [Word A] → [???] → [Word B]
+// Player picks the BRIDGE word CD such that:
+//   last char of A == first char of C  (A接C)
+//   last char of D == first char of B  (D接B)
+// All three words (A, CD, B) must be in wordData.
+// Distractors: same first char as correct answer but can't connect to B.
+// ══════════════════════════════════════════════════════════════════════════
+const WC_ROUNDS = 10; // questions per game
+let wcQuestions     = []; // array of {wordA, bridge, wordB, distractors}
+let wcQ             = 0;
+let wcTotalCorrect  = 0;
+
+function buildWcQuestions() {
+  // ── 只用两字词 ──────────────────────────────────────────────────────────
+  const twoChar = wordData.filter(d => [...d.word].length === 2);
+  if (twoChar.length < 6) return [];
+
+  // Build lookup: firstChar → [word, ...]  (两字词)
+  const byFirst = {};
+  twoChar.forEach(d => {
+    const fc = d.word[0];
+    if (!byFirst[fc]) byFirst[fc] = [];
+    byFirst[fc].push(d.word);
+  });
+
+  const triples = []; // {wordA, bridge, wordB}
+
+  for (const wA of twoChar) {
+    const lastA   = wA.word[1];               // 两字词末字 = 下标[1]
+    const bridges = byFirst[lastA] || [];
+    for (const bridge of bridges) {
+      if (bridge === wA.word) continue;
+      const lastBridge = bridge[1];            // bridge末字
+      const nextWords  = byFirst[lastBridge] || [];
+      for (const wB of nextWords) {
+        if (wB === wA.word || wB === bridge) continue;
+        triples.push({ wordA: wA.word, bridge, wordB: wB });
+      }
+    }
+  }
+
+  if (triples.length === 0) return [];
+
+  // 打乱，避免重复 wordA
+  const shuffled = shuffle(triples);
+  const chosen   = [];
+  const usedA    = new Set();
+  for (const t of shuffled) {
+    if (chosen.length >= WC_ROUNDS) break;
+    if (usedA.has(t.wordA)) continue;
+    usedA.add(t.wordA);
+    chosen.push(t);
+  }
+  for (const t of shuffled) {
+    if (chosen.length >= WC_ROUNDS) break;
+    if (!chosen.includes(t)) chosen.push(t);
+  }
+
+  // 为每道题选3个干扰项：任意两字词，不等于正确答案及题目中出现的词即可
+  return chosen.slice(0, WC_ROUNDS).map(({ wordA, bridge, wordB }) => {
+    const dist = shuffle(
+      twoChar.map(d => d.word).filter(w => w !== bridge && w !== wordA && w !== wordB)
+    ).slice(0, 3);
+    return { wordA, bridge, wordB, distractors: dist };
+  });
+}
+
+function getUsedWcKeys() {
+  try { return JSON.parse(sessionStorage.getItem('wcUsedKeys') || '[]'); } catch(e) { return []; }
+}
+function markWcUsed(q) {
+  const key = `${q.wordA}→${q.bridge}→${q.wordB}`;
+  const used = getUsedWcKeys();
+  used.push(key);
+  try { sessionStorage.setItem('wcUsedKeys', JSON.stringify(used.slice(-40))); } catch(e) {}
+}
+
+function startWordChain() {
+  if (wordData.length < 10) { alert('词语太少了！请先加载题目数据。'); return; }
+  const all = buildWcQuestions();
+  if (all.length === 0) {
+    alert('在两字词里找不到可接龙的组合！\n\n请在词表里多加一些两字词，让首字或末字互相呼应。\n例如：上学、学校、校园。');
+    return;
+  }
+  const usedKeys = new Set(getUsedWcKeys());
+  const fresh = all.filter(q => !usedKeys.has(`${q.wordA}→${q.bridge}→${q.wordB}`));
+  wcQuestions = (fresh.length >= WC_ROUNDS ? fresh : all).slice(0, WC_ROUNDS);
+  wcQ = 0; wcTotalCorrect = 0;
+  currentGame = 'word-chain';
+  showScreen('word-chain-screen');
+  updateScoreBadge();
+  renderWcQuestion();
+}
+
+function renderWcQuestion() {
+  const q = wcQuestions[wcQ];
+  document.getElementById('wc-progress-bar').style.width = (wcQ / wcQuestions.length * 100) + '%';
+  document.getElementById('wc-counter').textContent = `${wcQ + 1} / ${wcQuestions.length}`;
+
+  document.getElementById('wc-instruction').innerHTML =
+    '找出中间那个词，让三个词首尾相连！<br><small style="color:#bbb">Find the bridge word · 两字词 only</small>';
+
+  // ── 拼出三格显示 ──────────────────────────────────────────────────────
+  // wordA = "AB"  显示 [A][＿]
+  // bridge = "CD" 显示 [？][？]   ← 要选的
+  // wordB = "EF"  显示 [＿][F]
+  // 连接规律：B==C（wordA末==bridge首），D==E（bridge末==wordB首）
+  const charA1 = q.wordA[0], charA2 = q.wordA[1]; // A的首、末
+  const charB1 = q.wordB[0], charB2 = q.wordB[1]; // B的首、末
+
+  const stepsEl = document.getElementById('wc-chain-steps');
+  stepsEl.innerHTML = '';
+
+  // 构建一个字格
+  const makeChar = (ch, cls) => {
+    const d = document.createElement('div');
+    d.className = 'wc-char ' + cls;
+    d.textContent = ch;
+    return d;
+  };
+  const makeArrow = () => {
+    const s = document.createElement('span');
+    s.className = 'wc-arrow'; s.textContent = '→'; return s;
+  };
+  const makeWord = (...tiles) => {
+    const w = document.createElement('div');
+    w.className = 'wc-word';
+    tiles.forEach(t => w.appendChild(t));
+    return w;
+  };
+
+  // [A₁][＿]  →  [？][？]  →  [＿][B₂]
+  stepsEl.appendChild(makeWord(
+    makeChar(charA1, 'wc-char anchor'),
+    makeChar('＿', 'wc-char hidden')
+  ));
+  stepsEl.appendChild(makeArrow());
+  stepsEl.appendChild(makeWord(
+    makeChar('？', 'wc-char bridge'),
+    makeChar('？', 'wc-char bridge')
+  ));
+  stepsEl.appendChild(makeArrow());
+  stepsEl.appendChild(makeWord(
+    makeChar('＿', 'wc-char hidden'),
+    makeChar(charB2, 'wc-char anchor')
+  ));
+
+  // 清空 hint（不再显示提示字，让小朋友自己推理）
+  document.getElementById('wc-hint').innerHTML = '';
+  document.getElementById('wc-counter-label').textContent = '';
+
+  // 选项
+  const options = shuffle([q.bridge, ...q.distractors]);
+  const optEl   = document.getElementById('wc-options');
+  optEl.innerHTML = '';
+  options.forEach(word => {
+    const btn = document.createElement('button');
+    btn.className   = 'wc-opt-btn';
+    btn.textContent = word;
+    btn.onclick     = () => selectWcBridge(btn, word, q, optEl);
+    optEl.appendChild(btn);
+  });
+
+  const fb = document.getElementById('wc-feedback');
+  fb.className = 'wc-feedback';
+  fb.textContent = '';
+}
+
+function selectWcBridge(btn, chosen, q, optEl) {
+  optEl.querySelectorAll('.wc-opt-btn').forEach(b => {
+    b.disabled = true;
+    if (b.textContent === q.bridge) b.classList.add('correct');
+    else if (b === btn && chosen !== q.bridge) b.classList.add('wrong');
+  });
+
+  const isCorrect = chosen === q.bridge;
+
+  // 揭晓：把三格全部显示出来
+  const stepsEl  = document.getElementById('wc-chain-steps');
+  const hiddens  = stepsEl.querySelectorAll('.wc-char.hidden');
+  const bridges  = stepsEl.querySelectorAll('.wc-char.bridge');
+  // hidden[0] = wordA末字, hidden[1] = wordB首字
+  if (hiddens[0]) { hiddens[0].textContent = q.wordA[1]; hiddens[0].classList.replace('hidden', 'revealed'); }
+  if (hiddens[1]) { hiddens[1].textContent = q.wordB[0]; hiddens[1].classList.replace('hidden', 'revealed'); }
+  // bridge chars
+  if (bridges[0]) { bridges[0].textContent = q.bridge[0]; bridges[0].classList.add(isCorrect ? 'correct' : 'wrong-reveal'); }
+  if (bridges[1]) { bridges[1].textContent = q.bridge[1]; bridges[1].classList.add(isCorrect ? 'correct' : 'wrong-reveal'); }
+
+  markWcUsed(q);
+
+  const fb = document.getElementById('wc-feedback');
+  if (isCorrect) {
+    totalScore += 10; wcTotalCorrect++;
+    updateScoreBadge();
+    fb.className = 'wc-feedback show correct';
+    fb.textContent = `✨ ${q.wordA} → ${q.bridge} → ${q.wordB}  接对了！`;
+    setTimeout(nextWcQuestion, 1400);
+  } else {
+    fb.className = 'wc-feedback show wrong';
+    fb.textContent = `❌ 桥梁词是「${q.bridge}」→ ${q.wordA} → ${q.bridge} → ${q.wordB}`;
+    setTimeout(nextWcQuestion, 2400);
+  }
+}
+
+function nextWcQuestion() {
+  wcQ++;
+  if (wcQ >= wcQuestions.length) finishWordChain();
+  else renderWcQuestion();
+}
+
+function finishWordChain() {
+  const s     = quizState['word-chain'];
+  const total = wcQuestions.length;
+  const score = Math.round(wcTotalCorrect / total * 100);
+  s.scores.push(score);
+  const passed = wcTotalCorrect === total;
+  if (passed && !s.passed) { s.passed = true; updateHomeButtons(); }
+  saveState();
+
+  currentGame = 'word-chain';
+  gameCorrect = wcTotalCorrect;
+  showScreen('result-screen');
+  document.getElementById('result-score').textContent = `${wcTotalCorrect} / ${total}`;
+
+  let emoji, stars, title, msg;
+  if (passed) { emoji='🏆'; stars='⭐⭐⭐'; title='Perfect!'; msg='Every bridge word correct! 🎉'; launchConfetti(); }
+  else if (score >= 70) { emoji='🎉'; stars='⭐⭐'; title='Great job!'; msg='So close — keep going!'; }
+  else { emoji='💪'; stars='⭐'; title='Keep going!'; msg='Practice the chains!'; }
+
+  document.getElementById('result-emoji').textContent    = emoji;
+  document.getElementById('result-stars').textContent    = stars;
+  document.getElementById('result-title').textContent    = title;
+  document.getElementById('result-msg').textContent      = msg;
+  document.getElementById('result-attempts').textContent = '';
+  document.getElementById('play-again-btn').style.display = 'block';
+}
+
+
 
 </script>
 </body>
