@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>🐰 Learn Chinese!</title>
+<title>🐼 Learn Chinese!</title>
 <link rel="manifest" href="manifest.json">
 <meta name="theme-color" content="#FF6B6B">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="default">
 <meta name="apple-mobile-web-app-title" content="学中文">
-<link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/2663/2663067.png">
+<link rel="apple-touch-icon" href="data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHZpZXdCb3g9IjAgMCA1MTIgNTEyIj4KICA8IS0tIEJhY2tncm91bmQgY2lyY2xlIC0tPgogIDxjaXJjbGUgY3g9IjI1NiIgY3k9IjI1NiIgcj0iMjU2IiBmaWxsPSIjZjVmNWY1Ii8+CiAgPCEtLSBMZWZ0IGVhciAtLT4KICA8Y2lyY2xlIGN4PSIxNDAiIGN5PSIxNDAiIHI9IjcwIiBmaWxsPSIjMjIyIi8+CiAgPCEtLSBSaWdodCBlYXIgLS0+CiAgPGNpcmNsZSBjeD0iMzcyIiBjeT0iMTQwIiByPSI3MCIgZmlsbD0iIzIyMiIvPgogIDwhLS0gSGVhZCAtLT4KICA8Y2lyY2xlIGN4PSIyNTYiIGN5PSIyODAiIHI9IjE4MCIgZmlsbD0id2hpdGUiLz4KICA8IS0tIExlZnQgZXllIHBhdGNoIC0tPgogIDxlbGxpcHNlIGN4PSIxODUiIGN5PSIyMzAiIHJ4PSI1MiIgcnk9IjQ4IiBmaWxsPSIjMjIyIiB0cmFuc2Zvcm09InJvdGF0ZSgtMTUgMTg1IDIzMCkiLz4KICA8IS0tIFJpZ2h0IGV5ZSBwYXRjaCAtLT4KICA8ZWxsaXBzZSBjeD0iMzI3IiBjeT0iMjMwIiByeD0iNTIiIHJ5PSI0OCIgZmlsbD0iIzIyMiIgdHJhbnNmb3JtPSJyb3RhdGUoMTUgMzI3IDIzMCkiLz4KICA8IS0tIExlZnQgZXllIHdoaXRlIC0tPgogIDxjaXJjbGUgY3g9IjE4OCIgY3k9IjIzMiIgcj0iMjIiIGZpbGw9IndoaXRlIi8+CiAgPCEtLSBSaWdodCBleWUgd2hpdGUgLS0+CiAgPGNpcmNsZSBjeD0iMzI0IiBjeT0iMjMyIiByPSIyMiIgZmlsbD0id2hpdGUiLz4KICA8IS0tIExlZnQgcHVwaWwgLS0+CiAgPGNpcmNsZSBjeD0iMTkyIiBjeT0iMjM2IiByPSIxMyIgZmlsbD0iIzExMSIvPgogIDwhLS0gUmlnaHQgcHVwaWwgLS0+CiAgPGNpcmNsZSBjeD0iMzIwIiBjeT0iMjM2IiByPSIxMyIgZmlsbD0iIzExMSIvPgogIDwhLS0gTm9zZSAtLT4KICA8ZWxsaXBzZSBjeD0iMjU2IiBjeT0iMzA1IiByeD0iMjgiIHJ5PSIxOCIgZmlsbD0iIzMzMyIvPgogIDwhLS0gTW91dGggLS0+CiAgPHBhdGggZD0iTSAyMjggMzI1IFEgMjU2IDM1NSAyODQgMzI1IiBzdHJva2U9IiMzMzMiIHN0cm9rZS13aWR0aD0iOCIgZmlsbD0ibm9uZSIgc3Ryb2tlLWxpbmVjYXA9InJvdW5kIi8+CiAgPCEtLSBDaGVlayBibHVzaCBsZWZ0IC0tPgogIDxjaXJjbGUgY3g9IjE3MCIgY3k9IjMxMCIgcj0iMjIiIGZpbGw9IiNmZmIzYzEiIG9wYWNpdHk9IjAuNSIvPgogIDwhLS0gQ2hlZWsgYmx1c2ggcmlnaHQgLS0+CiAgPGNpcmNsZSBjeD0iMzQyIiBjeT0iMzEwIiByPSIyMiIgZmlsbD0iI2ZmYjNjMSIgb3BhY2l0eT0iMC41Ii8+Cjwvc3ZnPg==">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@400;700;900&display=swap');
 
@@ -275,7 +275,7 @@
     padding: 20px 16px; box-shadow: 0 8px 32px rgba(0,0,0,0.08); margin-bottom: 14px;
   }
   .wc-chain-steps {
-    display: flex; align-items: center; gap: 10px;
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
     justify-content: center; margin: 14px 0 8px;
   }
   /* 每个"词"是两个字格并排 */
@@ -301,7 +301,7 @@
                            color: #FF4E4E !important; animation: none !important; border-style: solid !important; }
   .wc-char.revealed { border-color: #6BCB77; background: #f0fff3; color: #3aaa5c; border-style: solid; }
 
-  .wc-arrow { font-size: 1.4rem; color: #bbb; font-weight: 700; flex-shrink: 0; }
+  .wc-arrow { font-size: 1.2rem; color: #bbb; font-weight: 700; line-height: 1; }
   @keyframes pulse { 0%,100%{box-shadow:0 0 0 0 rgba(255,107,107,0.3)} 50%{box-shadow:0 0 0 7px rgba(255,107,107,0)} }
 
   .wc-hint {
@@ -341,8 +341,11 @@
 <body>
 
 <header>
-  <h1 id="header-title">🐰 Learn Chinese!</h1>
-  <div id="score-badge">⭐ <span id="total-score">0</span> pts</div>
+  <h1 id="header-title">🐼 Learn Chinese!</h1>
+  <div style="display:flex;align-items:center;gap:10px;">
+    <button onclick="showScreen('settings-screen')" style="background:rgba(255,255,255,0.2);border:2px solid rgba(255,255,255,0.4);color:#fff;border-radius:50%;width:36px;height:36px;font-size:1.1rem;cursor:pointer;">⚙️</button>
+    <div id="score-badge">⭐ <span id="total-score">0</span> pts</div>
+  </div>
 </header>
 
 <main>
@@ -352,7 +355,8 @@
     <div class="welcome-box">
       <span class="panda" id="home-animal">🐰</span>
       <h2>你好! Nǐ hǎo!</h2>
-      <p>Pick a game and start learning Chinese!</p>
+      <p style="color:#777; font-size:1rem;">Pick a game and start learning Chinese!</p>
+      <p id="home-data-indicator" style="margin-top:8px;font-size:0.82rem;color:#aaa;"></p>
     </div>
     <div class="game-grid">
       <button class="game-btn" data-game="odd-one-out" onclick="startGame('odd-one-out')">
@@ -397,15 +401,6 @@
         <span class="sub">Find the bridge word!</span>
         <span class="attempts" id="att-word-chain"></span>
       </button>
-    </div>
-    <div style="display:flex; gap:10px; align-items:center; justify-content:center; flex-wrap:wrap; margin-top:4px;">
-      <button id="refresh-btn" onclick="loadFromGoogleSheets()" style="
-        background: linear-gradient(135deg, var(--theme-gradient-a), var(--theme-gradient-b));
-        color:#fff; border:none; border-radius:30px; padding:8px 20px;
-        font-size:0.95rem; font-weight:800; cursor:pointer; transition:all 0.18s;
-        box-shadow: 0 4px 12px var(--header-shadow);
-      ">🔄 加载题目</button>
-      <p id="data-status" style="font-size:0.88rem; color:#aaa;"></p>
     </div>
   </div>
 
@@ -485,6 +480,38 @@
     </div>
   </div>
 
+  <!-- SETTINGS -->
+  <div id="settings-screen" class="screen">
+    <button class="back-btn" onclick="goHome()">← Back</button>
+    <div style="background:#fff;border-radius:20px;padding:28px 24px;box-shadow:0 8px 32px rgba(0,0,0,0.08);">
+      <h2 style="font-size:1.4rem;font-weight:900;margin-bottom:6px;">⚙️ 设置</h2>
+      <p style="color:#999;font-size:0.9rem;margin-bottom:24px;">Settings</p>
+
+      <div style="margin-bottom:20px;">
+        <label style="font-weight:800;font-size:1rem;display:block;margin-bottom:8px;">📚 已学字数（序号阈值）</label>
+        <p style="color:#999;font-size:0.85rem;margin-bottom:10px;">只使用序号小于此数字的字和词</p>
+        <div style="display:flex;gap:10px;align-items:center;">
+          <input type="number" id="threshold-input" min="1" max="3500" placeholder="例如：527"
+            style="flex:1;padding:12px 16px;border:3px solid #e9ecef;border-radius:14px;font-size:1.1rem;font-weight:700;outline:none;">
+          <button onclick="saveThreshold()" style="
+            background:linear-gradient(135deg,var(--theme-gradient-b),var(--theme-gradient-a));
+            color:#fff;border:none;border-radius:14px;padding:12px 20px;
+            font-size:1rem;font-weight:800;cursor:pointer;">保存</button>
+        </div>
+        <p id="threshold-status" style="margin-top:8px;font-size:0.85rem;color:#6BCB77;font-weight:700;"></p>
+      </div>
+
+      <div style="border-top:2px solid #f0f0f0;padding-top:20px;">
+        <label style="font-weight:800;font-size:1rem;display:block;margin-bottom:8px;">🔄 数据</label>
+        <p id="data-status" style="font-size:0.88rem;color:#aaa;margin-bottom:10px;"></p>
+        <button id="refresh-btn" onclick="loadFromGoogleSheets()" style="
+          width:100%;background:linear-gradient(135deg,var(--theme-gradient-a),var(--theme-gradient-b));
+          color:#fff;border:none;border-radius:14px;padding:14px;
+          font-size:1rem;font-weight:800;cursor:pointer;">🔄 重新加载题目</button>
+      </div>
+    </div>
+  </div>
+
 </main>
 
 <script>
@@ -497,11 +524,10 @@ const THEMES = [
   { ga:'#FF9A3C', gb:'#FFD93D', light:'#fff8f0', shadow:'rgba(255,154,60,0.3)',  bg:'#FFFAF2', s1:'rgba(255,217,61,0.2)', s2:'rgba(255,154,60,0.15)', s3:'rgba(255,200,100,0.1)' },
   { ga:'#FF6B6B', gb:'#FFA07A', light:'#fff0f0', shadow:'rgba(255,107,107,0.3)', bg:'#FFF5F5', s1:'rgba(255,160,122,0.2)', s2:'rgba(255,107,107,0.15)', s3:'rgba(255,130,100,0.1)' },
 ];
-const ANIMALS = ['🐼','🐰','🐭','🐦','🐹','🐱','🦊','🐸','🐧','🦔','🦆','🐣','🦉'];
+const ANIMALS = ['🐼'];
 
 function applyTheme() {
   const t = THEMES[Math.floor(Math.random() * THEMES.length)];
-  const a = ANIMALS[Math.floor(Math.random() * ANIMALS.length)];
   const r = document.documentElement;
   r.style.setProperty('--theme-primary',    t.ga);
   r.style.setProperty('--theme-light',      t.light);
@@ -512,9 +538,9 @@ function applyTheme() {
   r.style.setProperty('--grad-spot1',       t.s1);
   r.style.setProperty('--grad-spot2',       t.s2);
   r.style.setProperty('--grad-spot3',       t.s3);
-  document.getElementById('home-animal').textContent  = a;
-  document.getElementById('header-title').textContent = `${a} Learn Chinese!`;
-  document.title = `${a} Learn Chinese!`;
+  document.getElementById('home-animal').textContent  = '🐼🎋';
+  document.getElementById('header-title').textContent = '🐼 Learn Chinese!';
+  document.title = '🐼 Learn Chinese!';
 
   // Rainbow border colors cycling through buttons
   const RAINBOW = [
@@ -538,7 +564,8 @@ const SHEET_ID  = '1jxgGnI2kf7ZRiybz4mYCDPuBfrHpZQZmceRU2QHlU9g';
 const GID_CHARS = '1460577496';
 const GID_WORDS = '1306571548';
 const CSV_BASE  = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=`;
-let charData = [], wordData = [];
+let charData = [], wordData = [], allCharData = [], allWordData = [];
+let threshold = 9999;
 let totalScore = 0, gameCorrect = 0, currentGame = '';
 let questions = [], currentQ = 0, answered = false;
 const QUESTIONS_PER_GAME = 10;
@@ -588,16 +615,18 @@ function loadCachedData() {
   try {
     const raw = localStorage.getItem('chineseAppData');
     if (!raw) {
-      status.textContent = '⏳ 正在加载题目数据...';
+      status.textContent = '⏳ 点击"重新加载题目"按钮加载数据';
       status.className = '';
+      applyThreshold();
       return;
     }
     const cached = JSON.parse(raw);
-    charData = cached.charData || [];
-    wordData = cached.wordData || [];
-    if (charData.length > 0 || wordData.length > 0) {
+    allCharData = cached.allCharData || cached.charData || [];
+    allWordData = cached.allWordData || cached.wordData || [];
+    if (allCharData.length > 0 || allWordData.length > 0) {
       const date = cached.savedAt ? new Date(cached.savedAt).toLocaleDateString('zh-CN') : '之前';
-      status.textContent = `✅ 已加载 ${charData.length} 个汉字 & ${wordData.length} 个词语（${date}）`;
+      applyThreshold();
+      status.textContent = `✅ 已加载 ${allCharData.length} 个汉字 & ${allWordData.length} 个词语（${date}）`;
       status.className = 'ok';
       if (refreshBtn) refreshBtn.textContent = '🔄 重新加载';
       updateHomeButtons();
@@ -622,22 +651,28 @@ async function loadFromGoogleSheets() {
 
     const [charHeader, ...charData_rows] = data.chars;
     const ci = charHeader.map(h => String(h).toLowerCase().trim());
-    charData = charData_rows.map(r => ({
+    allCharData = charData_rows.map(r => ({
       character: String(r[ci.indexOf('character')] || '').trim(),
       pinyin:    String(r[ci.indexOf('pinyin')]    || '').trim(),
-      words:     String(r[ci.indexOf('words')]     || '').split(/[,，]/).map(w => w.trim()).filter(Boolean),
+      serialNo:  parseInt(r[ci.indexOf('no')]      || r[2] || 9999),
+      words:     String(r[ci.indexOf('words')]     || r[3] || '').split(/[,，]/).map(w => w.trim()).filter(Boolean),
     })).filter(r => r.character && r.pinyin);
 
     const [wordHeader, ...wordData_rows] = data.words;
     const wi = wordHeader.map(h => String(h).toLowerCase().trim());
-    wordData = wordData_rows.map(r => ({
-      word:    String(r[wi.indexOf('word')]    || '').trim(),
-      meaning: String(r[wi.indexOf('meaning')] || '').trim(),
+    const wordCol    = wi.indexOf('word') !== -1 ? wi.indexOf('word') : wi.indexOf('words');
+    const meaningCol = wi.indexOf('meaning');
+    const pinyinCol  = wi.indexOf('pinyin');
+    allWordData = wordData_rows.map(r => ({
+      word:    String(r[wordCol]    || '').trim(),
+      meaning: String(r[meaningCol] || '').trim(),
+      pinyin:  String(r[pinyinCol]  !== undefined ? r[pinyinCol] : (r[2] || '')).trim(),
     })).filter(r => r.word && r.meaning);
 
     // Save to localStorage for next visit
-    localStorage.setItem('chineseAppData', JSON.stringify({ charData, wordData, savedAt: Date.now() }));
-    status.textContent = `✅ 已加载 ${charData.length} 个汉字 & ${wordData.length} 个词语`;
+    localStorage.setItem('chineseAppData', JSON.stringify({ allCharData, allWordData, savedAt: Date.now() }));
+    applyThreshold();
+    status.textContent = `✅ 已加载 ${allCharData.length} 个汉字 & ${allWordData.length} 个词语（当前阈值：${threshold}，可用 ${charData.length} 字 ${wordData.length} 词）`;
     status.className = 'ok';
     if (refreshBtn) { refreshBtn.disabled = false; refreshBtn.textContent = '🔄 重新加载'; }
     updateHomeButtons();
@@ -693,23 +728,27 @@ function processData(data) {
 
   const [charHeader, ...charData_rows] = data.chars;
   const ci = charHeader.map(h => String(h).toLowerCase().trim());
-  charData = charData_rows.map(r => ({
+  allCharData = charData_rows.map(r => ({
     character: String(r[ci.indexOf('character')] || '').trim(),
     pinyin:    String(r[ci.indexOf('pinyin')]    || '').trim(),
-    words:     String(r[ci.indexOf('words')]     || '').split(/[,，]/).map(w => w.trim()).filter(Boolean),
+    serialNo:  parseInt(r[ci.indexOf('no')]      || r[2] || 9999),
+    words:     String(r[ci.indexOf('words')]     || r[3] || '').split(/[,，]/).map(w => w.trim()).filter(Boolean),
   })).filter(r => r.character && r.pinyin);
 
   const [wordHeader, ...wordData_rows] = data.words;
   const wi = wordHeader.map(h => String(h).toLowerCase().trim());
-  wordData = wordData_rows.map(r => ({
-    word:    String(r[wi.indexOf('word')]    || '').trim(),
-    meaning: String(r[wi.indexOf('meaning')] || '').trim(),
+  const wordCol    = wi.indexOf('word') !== -1 ? wi.indexOf('word') : wi.indexOf('words');
+  const meaningCol = wi.indexOf('meaning');
+  const pinyinCol  = wi.indexOf('pinyin');
+  allWordData = wordData_rows.map(r => ({
+    word:    String(r[wordCol]    || '').trim(),
+    meaning: String(r[meaningCol] || '').trim(),
+    pinyin:  String(r[pinyinCol]  !== undefined ? r[pinyinCol] : (r[2] || '')).trim(),
   })).filter(r => r.word && r.meaning);
 
-  // 保存到 localStorage 供下次使用
-  try { localStorage.setItem('chineseAppData', JSON.stringify({ charData, wordData, savedAt: Date.now() })); } catch(e) {}
-
-  status.textContent = `✅ 已加载 ${charData.length} 个汉字 & ${wordData.length} 个词语`;
+  try { localStorage.setItem('chineseAppData', JSON.stringify({ allCharData, allWordData, savedAt: Date.now() })); } catch(e) {}
+  applyThreshold();
+  status.textContent = `✅ 已加载 ${allCharData.length} 个汉字 & ${allWordData.length} 个词语`;
   status.className = 'ok';
   if (refreshBtn) { refreshBtn.disabled = false; refreshBtn.textContent = '🔄 重新加载'; }
   updateHomeButtons();
@@ -719,13 +758,52 @@ function processData(data) {
 document.addEventListener('DOMContentLoaded', () => {
   applyTheme();
   loadState();
+  loadThreshold();
   loadCachedData();
   updateHomeButtons();
-  // 没有缓存数据时自动加载（手机第一次打开）
   if (charData.length === 0 && wordData.length === 0) {
     loadFromGoogleSheets();
   }
 });
+
+function loadThreshold() {
+  const saved = localStorage.getItem('chineseAppThreshold');
+  if (saved) threshold = parseInt(saved) || 9999;
+  const input = document.getElementById('threshold-input');
+  if (input && threshold !== 9999) input.value = threshold;
+}
+
+function saveThreshold() {
+  const input = document.getElementById('threshold-input');
+  const val = parseInt(input.value);
+  if (!val || val < 1 || val > 3500) {
+    document.getElementById('threshold-status').textContent = '请输入 1–3500 之间的数字';
+    document.getElementById('threshold-status').style.color = '#FF4E4E';
+    return;
+  }
+  threshold = val;
+  localStorage.setItem('chineseAppThreshold', val);
+  applyThreshold();
+  document.getElementById('threshold-status').textContent = `✅ 已设置为 ${val}，当前可用 ${charData.length} 个字、${wordData.length} 个词`;
+  document.getElementById('threshold-status').style.color = '#6BCB77';
+}
+
+function applyThreshold() {
+  charData = allCharData.filter(d => d.serialNo < threshold);
+  const knownChars = new Set(charData.map(d => d.character));
+  wordData = allWordData.filter(d => [...d.word].every(c => knownChars.has(c)));
+  updateHomeButtons();
+  const ind = document.getElementById('home-data-indicator');
+  if (ind) {
+    if (allCharData.length > 0) {
+      ind.textContent = `📚 可用：${charData.length} 字 · ${wordData.length} 词（阈值 ${threshold}）`;
+      ind.style.color = '#6BCB77';
+    } else {
+      ind.textContent = '⚙️ 请到设置页加载数据';
+      ind.style.color = '#aaa';
+    }
+  }
+}
 
 function shuffle(arr) { return [...arr].sort(() => Math.random() - 0.5); }
 function pinyinBase(p) { return p.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\d/g,'').toLowerCase(); }
@@ -846,8 +924,7 @@ function renderQuestion() {
   // Clean up listen-pinyin speaker button if present
   const oldSpeaker = document.getElementById('lp-speaker');
   if (oldSpeaker) oldSpeaker.remove();
-  speechSynthesis.cancel();
-  document.getElementById('progress-bar').style.width = (currentQ/QUESTIONS_PER_GAME*100)+'%';
+  speechSynthesis.cancel();  document.getElementById('progress-bar').style.width = (currentQ/QUESTIONS_PER_GAME*100)+'%';
   document.getElementById('q-counter').textContent = `${currentQ+1} / ${QUESTIONS_PER_GAME}`;
   document.getElementById('feedback').className = 'feedback';
   document.getElementById('feedback').textContent = '';
@@ -1434,6 +1511,11 @@ function renderOooQuestion() {
   const q = oooQuestions[oooQ];
   oooAnswered = false;
 
+  // Clean up listen-pinyin speaker button if present
+  const oldSpeaker = document.getElementById('lp-speaker');
+  if (oldSpeaker) oldSpeaker.remove();
+  speechSynthesis.cancel();
+
   document.getElementById('progress-bar').style.width = (oooQ / OOO_QUESTIONS * 100) + '%';
   document.getElementById('q-counter').textContent = `${oooQ + 1} / ${OOO_QUESTIONS}`;
   document.getElementById('feedback').className = 'feedback';
@@ -1669,7 +1751,7 @@ function renderWcQuestion() {
   };
   const makeArrow = () => {
     const s = document.createElement('span');
-    s.className = 'wc-arrow'; s.textContent = '→'; return s;
+    s.className = 'wc-arrow'; s.textContent = '↓'; return s;
   };
   const makeWord = (...tiles) => {
     const w = document.createElement('div');
