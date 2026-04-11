@@ -656,6 +656,7 @@ async function loadFromGoogleSheets() {
       pinyin:    String(r[ci.indexOf('pinyin')]    || '').trim(),
       serialNo:  parseInt(r[ci.indexOf('no')]      || r[2] || 9999),
       words:     String(r[ci.indexOf('words')]     || r[3] || '').split(/[,，]/).map(w => w.trim()).filter(Boolean),
+      skip:      String(r[ci.indexOf('skip')]      || '').trim().toLowerCase() === 'y',
     })).filter(r => r.character && r.pinyin);
 
     const [wordHeader, ...wordData_rows] = data.words;
@@ -733,6 +734,7 @@ function processData(data) {
     pinyin:    String(r[ci.indexOf('pinyin')]    || '').trim(),
     serialNo:  parseInt(r[ci.indexOf('no')]      || r[2] || 9999),
     words:     String(r[ci.indexOf('words')]     || r[3] || '').split(/[,，]/).map(w => w.trim()).filter(Boolean),
+    skip:      String(r[ci.indexOf('skip')]      || '').trim().toLowerCase() === 'y',
   })).filter(r => r.character && r.pinyin);
 
   const [wordHeader, ...wordData_rows] = data.words;
@@ -789,7 +791,7 @@ function saveThreshold() {
 }
 
 function applyThreshold() {
-  charData = allCharData.filter(d => d.serialNo < threshold);
+  charData = allCharData.filter(d => d.serialNo < threshold && !d.skip);
   const knownChars = new Set(charData.map(d => d.character));
   wordData = allWordData.filter(d => [...d.word].every(c => knownChars.has(c)));
   updateHomeButtons();
