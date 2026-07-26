@@ -791,7 +791,7 @@ function saveThreshold() {
 }
 
 function applyThreshold() {
-  charData = allCharData.filter(d => d.serialNo < threshold && !d.skip);
+  charData = allCharData.filter(d => d.serialNo <= threshold && !d.skip);
   const knownChars = new Set(charData.map(d => d.character));
   wordData = allWordData.filter(d => [...d.word].every(c => knownChars.has(c)));
   updateHomeButtons();
