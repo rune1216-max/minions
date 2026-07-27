@@ -171,6 +171,7 @@
   .feedback { text-align: center; padding: 14px; border-radius: 14px; font-weight: 800; font-size: 1.1rem; margin-top: 16px; display: none; }
   .feedback.correct { background: #f0fff3; color: #6BCB77; display: block; }
   .feedback.wrong   { background: #fff0f0; color: #FF4E4E; display: block; }
+  .feedback.retry   { background: #fff8e6; color: #FF9A3C; display: block; }
 
   #next-btn {
     display: none; width: 100%; margin-top: 14px;
@@ -326,6 +327,7 @@
   .wc-feedback.show { display:block; }
   .wc-feedback.correct { background:#f0fff3; color:#6BCB77; }
   .wc-feedback.wrong   { background:#fff0f0; color:#FF4E4E; }
+  .wc-feedback.retry   { background:#fff8e6; color:#FF9A3C; }
   .wc-instruction { text-align:center; font-size:0.88rem; color:#999; margin-bottom:4px; font-weight:600; line-height:1.5; }
 
   @media (max-width: 480px) {
@@ -365,11 +367,11 @@
         <span class="sub">Find the different tone!</span>
         <span class="attempts" id="att-odd-one-out"></span>
       </button>
-      <button class="game-btn" data-game="listen-pinyin" onclick="startGame('listen-pinyin')">
-        <span class="icon">🔊→汉</span>
+      <button class="game-btn" data-game="listen-word" onclick="startGame('listen-word')">
+        <span class="icon">🔊→词</span>
         <span class="label">Listen & Pick</span>
-        <span class="sub">Hear it, find the character!</span>
-        <span class="attempts" id="att-listen-pinyin"></span>
+        <span class="sub">Hear it, find the word!</span>
+        <span class="attempts" id="att-listen-word"></span>
       </button>
       <button class="game-btn" data-game="char-pinyin-mix" onclick="startGame('char-pinyin-mix')">
         <span class="icon">汉↔pīn</span>
@@ -388,6 +390,12 @@
         <span class="label">Fill the Blank</span>
         <span class="sub">Complete the word</span>
         <span class="attempts" id="att-fill-blank"></span>
+      </button>
+      <button class="game-btn" data-game="true-false-meaning" onclick="startGame('true-false-meaning')">
+        <span class="icon">🌍词→义</span>
+        <span class="label">Pick the Meaning</span>
+        <span class="sub">Choose the right meaning</span>
+        <span class="attempts" id="att-true-false-meaning"></span>
       </button>
       <button class="game-btn" data-game="word-link" onclick="startGame('word-link')">
         <span class="icon">🔗</span>
@@ -567,11 +575,11 @@ const CSV_BASE  = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?for
 let charData = [], wordData = [], allCharData = [], allWordData = [];
 let threshold = 9999;
 let totalScore = 0, gameCorrect = 0, currentGame = '';
-let questions = [], currentQ = 0, answered = false;
+let questions = [], currentQ = 0, answered = false, attemptCount = 0;
 const QUESTIONS_PER_GAME = 10;
 
-const QUIZ_ORDER = ['odd-one-out','listen-pinyin','char-pinyin-mix','meaning-match','fill-blank','word-link','word-chain'];
-const QUIZ_NAMES = { 'char-pinyin-mix':'Char & Pinyin','listen-pinyin':'Listen & Pick','meaning-match':'Word Match','fill-blank':'Fill the Blank','word-link':'Word Link','odd-one-out':'Odd One Out','word-chain':'Word Chain' };
+const QUIZ_ORDER = ['odd-one-out','listen-word','char-pinyin-mix','meaning-match','fill-blank','true-false-meaning','word-link','word-chain'];
+const QUIZ_NAMES = { 'char-pinyin-mix':'Char & Pinyin','listen-word':'Listen & Pick','meaning-match':'Word Match','fill-blank':'Fill the Blank','true-false-meaning':'Pick the Meaning','word-link':'Word Link','odd-one-out':'Odd One Out','word-chain':'Word Chain' };
 
 const quizState = {};
 QUIZ_ORDER.forEach(g => quizState[g] = { passed: false, scores: [] });
@@ -815,9 +823,9 @@ function startGame(type) {
   if (type === 'word-link') { startWordLink(); return; }
   if (type === 'odd-one-out') { startOddOneOut(); return; }
   if (type === 'word-chain') { startWordChain(); return; }
-  if ((type==='meaning-match'||type==='fill-blank') && wordData.length<4) { alert('Need at least 4 words!'); return; }
+  if ((type==='meaning-match'||type==='fill-blank'||type==='true-false-meaning') && wordData.length<4) { alert('Need at least 4 words!'); return; }
   if (type==='char-pinyin-mix' && charData.length<5) { alert('Need at least 5 characters!'); return; }
-  if (type==='listen-pinyin' && charData.length<4) { alert('Need at least 4 characters!'); return; }
+  if (type==='listen-word' && wordData.length<4) { alert('Need at least 4 words!'); return; }
   currentGame = type; currentQ = 0; gameCorrect = 0; answered = false;
   questions = generateQuestions(type);
   showScreen('game-screen'); updateScoreBadge(); renderQuestion();
@@ -837,10 +845,17 @@ function generateQuestions(type) {
       }
     });
   }
-  if (type === 'listen-pinyin') {
-    return shuffle(charData).slice(0, QUESTIONS_PER_GAME).map(item => {
-      const wrong = shuffle(charData.filter(d => d.character !== item.character)).slice(0, 3).map(d => d.character);
-      return { item, type, answer: item.character, options: shuffle([item.character, ...wrong]) };
+  if (type === 'listen-word') {
+    return shuffle(wordData).slice(0, QUESTIONS_PER_GAME).map(item => {
+      const wrong = shuffle(wordData.filter(d => d.word !== item.word)).slice(0, 3).map(d => d.word);
+      return { item, type, answer: item.word, options: shuffle([item.word, ...wrong]) };
+    });
+  }
+  if (type === 'true-false-meaning') {
+    const eligible = wordData.filter(d => d.meaning && d.meaning.trim());
+    return shuffle(eligible).slice(0, QUESTIONS_PER_GAME).map(item => {
+      const wrong = shuffle(eligible.filter(d => d.word !== item.word && d.meaning !== item.meaning)).slice(0,3).map(d => d.meaning);
+      return { item, type, answer: item.meaning, options: shuffle([item.meaning, ...wrong]) };
     });
   }
   if (type === 'meaning-match') {
@@ -885,7 +900,7 @@ speechSynthesis.onvoiceschanged = lpInitVoice;
 function lpSpeak() {
   lpInitVoice();
   const q = questions[currentQ];
-  if (!q || q.type !== 'listen-pinyin') return;
+  if (!q || q.type !== 'listen-word') return;
   speechSynthesis.cancel();
 
   const btn  = document.getElementById('lp-play-btn');
@@ -898,15 +913,15 @@ function lpSpeak() {
     if (hint) hint.textContent = 'Tap to hear again';
   };
 
-  // First: character at normal speed in Mandarin
-  const u1 = new SpeechSynthesisUtterance(q.item.character);
+  // First: word at normal speed in Mandarin
+  const u1 = new SpeechSynthesisUtterance(q.item.word);
   u1.lang  = 'zh-CN';
   u1.rate  = 0.6;
   u1.pitch = 1.0;
   if (lpVoice) u1.voice = lpVoice;
 
-  // Second: same character slower for clarity
-  const u2 = new SpeechSynthesisUtterance(q.item.character);
+  // Second: same word slower for clarity
+  const u2 = new SpeechSynthesisUtterance(q.item.word);
   u2.lang  = 'zh-CN';
   u2.rate  = 0.35;
   u2.pitch = 1.0;
@@ -922,8 +937,8 @@ function lpSpeak() {
 
 function renderQuestion() {
   if (currentGame === 'odd-one-out') { renderOooQuestion(); return; }
-  const q = questions[currentQ]; answered = false;
-  // Clean up listen-pinyin speaker button if present
+  const q = questions[currentQ]; answered = false; attemptCount = 0;
+  // Clean up listen-word speaker button if present
   const oldSpeaker = document.getElementById('lp-speaker');
   if (oldSpeaker) oldSpeaker.remove();
   speechSynthesis.cancel();  document.getElementById('progress-bar').style.width = (currentQ/QUESTIONS_PER_GAME*100)+'%';
@@ -951,9 +966,9 @@ function renderQuestion() {
       pinEl.textContent=q.item.pinyin; pinEl.style.fontSize='2.5rem'; hintEl.textContent='';
       renderOptions(q.options, q.answer, 'character');
     }
-  } else if (q.type==='listen-pinyin') {
+  } else if (q.type==='listen-word') {
     document.getElementById('game-title').textContent = '🔊 Listen & Pick';
-    labelEl.textContent = 'Which character did you hear?';
+    labelEl.textContent = 'Which word did you hear?';
     charEl.style.display = 'none';
     pinEl.style.display = 'none';
     hintEl.style.display = 'none';
@@ -996,6 +1011,10 @@ function renderQuestion() {
     wfDisp.style.display='flex';
     wfDisp.innerHTML = q.chars.map((ch,i) => i===q.blankIdx ? `<div class="char-tile blank">？</div>` : `<div class="char-tile">${ch}</div>`).join('');
     renderOptions(q.options, q.answer, 'character');
+  } else if (q.type==='true-false-meaning') {
+    document.getElementById('game-title').textContent = '🌍 Pick the Meaning';
+    labelEl.textContent='What does this word mean?'; charEl.textContent=q.item.word; charEl.style.fontSize='3.5rem'; pinEl.textContent=hintEl.textContent='';
+    renderOptions(q.options, q.answer, 'meaning');
   }
 }
 
@@ -1014,50 +1033,55 @@ function renderOptions(options, answer, mode) {
 
 function selectOption(btn, chosen, answer) {
   if (answered) return;
-  answered = true;
   const isCorrect = chosen === answer;
-  document.querySelectorAll('.option-btn').forEach(b => {
-    const label = b.querySelector('[class]')?.textContent || b.textContent;
-    if (label.trim()===answer) b.classList.add('correct'); else b.classList.add('wrong');
-    b.disabled = true;
-  });
+
   if (isCorrect) {
+    answered = true;
+    document.querySelectorAll('.option-btn').forEach(b => {
+      const label = b.querySelector('[class]')?.textContent || b.textContent;
+      if (label.trim()===answer) b.classList.add('correct');
+      b.disabled = true;
+    });
     totalScore+=10; gameCorrect++; updateScoreBadge();
     const q = questions[currentQ];
-    if (q && q.type === 'listen-pinyin') {
-      showFeedback(true, null, `${q.item.character} = ${q.item.pinyin}`);
+    if (q && q.type === 'listen-word') {
+      showFeedback(true, null, `${q.item.word} = ${q.item.pinyin}`);
       setTimeout(nextQuestion, 1200);
     } else {
       showFeedback(true, answer);
       setTimeout(nextQuestion, 800);
     }
-  } else {
-    showFeedback(false, answer);
-    document.getElementById('next-btn').style.display='block';
+    return;
   }
-}
 
-function answerYesNo(userSaid, correctAnswer) {
-  if (answered) return;
-  answered = true;
-  const isCorrect = userSaid === correctAnswer;
-  const yesBtn=document.querySelector('.yn-btn.yes'), noBtn=document.querySelector('.yn-btn.no');
-  yesBtn.disabled=true; noBtn.disabled=true;
-  if (correctAnswer) { yesBtn.classList.add('correct'); if (!isCorrect) noBtn.classList.add('wrong'); }
-  else               { noBtn.classList.add('correct');  if (!isCorrect) yesBtn.classList.add('wrong'); }
-  const q = questions[currentQ];
-  const msg = q.answer ? `${q.charA}${q.charB} is a real word!` : `${q.charA}${q.charB} is NOT a real word.`;
-  if (isCorrect) {
-    totalScore+=10; gameCorrect++; updateScoreBadge();
-    showFeedback(true, null, msg); setTimeout(nextQuestion, 800);
-  } else {
-    showFeedback(false, null, msg); document.getElementById('next-btn').style.display='block';
+  // Wrong answer
+  btn.classList.add('wrong');
+  btn.disabled = true;
+
+  if (attemptCount === 0) {
+    // First miss — give a second try, don't reveal the answer yet
+    attemptCount = 1;
+    showFeedback(null, null, '❌ 再试一次！');
+    return;
   }
+
+  // Second miss — resolve the question
+  answered = true;
+  document.querySelectorAll('.option-btn').forEach(b => {
+    const label = b.querySelector('[class]')?.textContent || b.textContent;
+    if (label.trim()===answer) b.classList.add('correct');
+    b.disabled = true;
+  });
+  showFeedback(false, answer);
+  document.getElementById('next-btn').style.display='block';
 }
 
 function showFeedback(correct, correctAnswer, customMsg) {
   const fb = document.getElementById('feedback');
-  if (correct) {
+  if (correct === null) {
+    fb.className = 'feedback retry';
+    fb.textContent = customMsg || '❌ 再试一次！';
+  } else if (correct) {
     fb.className='feedback correct';
     const praise = ['🌟 Amazing!','🎉 Correct!','✨ You got it!','👏 Great job!','💫 Brilliant!'];
     const base   = praise[Math.floor(Math.random()*praise.length)];
@@ -1442,7 +1466,7 @@ function finishWordLink() {
 // Excludes polyphonic characters (pinyin contains '/').
 // ══════════════════════════════════════════════════════════════════════════
 const OOO_QUESTIONS = 10;
-let oooQuestions = [], oooQ = 0, oooCorrect = 0, oooAnswered = false;
+let oooQuestions = [], oooQ = 0, oooCorrect = 0, oooAnswered = false, oooAttempt = 0;
 
 function getTone(pinyin) {
   // Returns tone number 1-4 from diacritic marks, or 5 for neutral
@@ -1511,9 +1535,9 @@ function startOddOneOut() {
 
 function renderOooQuestion() {
   const q = oooQuestions[oooQ];
-  oooAnswered = false;
+  oooAnswered = false; oooAttempt = 0;
 
-  // Clean up listen-pinyin speaker button if present
+  // Clean up listen-word speaker button if present
   const oldSpeaker = document.getElementById('lp-speaker');
   if (oldSpeaker) oldSpeaker.remove();
   speechSynthesis.cancel();
@@ -1556,11 +1580,7 @@ function renderOooQuestion() {
 
 const TONE_NAMES = {1:'1st tone (ˉ)', 2:'2nd tone (ˊ)', 3:'3rd tone (ˇ)', 4:'4th tone (ˋ)', 5:'neutral'};
 
-function selectOoo(btn, chosen, q) {
-  if (oooAnswered) return;
-  oooAnswered = true;
-  const isCorrect = chosen.character === q.answer.character;
-
+function revealOooAnswers(q) {
   document.querySelectorAll('.ooo-btn').forEach(b => {
     b.disabled = true;
     const charText = b.querySelector('.ooo-char').textContent;
@@ -1582,18 +1602,37 @@ function selectOoo(btn, chosen, q) {
       }
     }
   });
+}
+
+function selectOoo(btn, chosen, q) {
+  if (oooAnswered) return;
+  const isCorrect = chosen.character === q.answer.character;
 
   if (isCorrect) {
+    oooAnswered = true;
+    revealOooAnswers(q);
     btn.classList.add('correct');
     totalScore += 10; oooCorrect++; updateScoreBadge();
     showFeedback(true, null, `${q.answer.character} = ${q.answer.pinyin} — ${TONE_NAMES[q.oddTone]}!`);
     setTimeout(() => nextOoo(), 1400);
-  } else {
-    btn.classList.add('wrong');
-    showFeedback(false, null, `Odd one: ${q.answer.character} (${q.answer.pinyin})`);
-    document.getElementById('next-btn').style.display = 'block';
-    document.getElementById('next-btn').onclick = nextOoo;
+    return;
   }
+
+  // Wrong pick
+  btn.classList.add('wrong');
+  btn.disabled = true;
+
+  if (oooAttempt === 0) {
+    oooAttempt = 1;
+    showFeedback(null, null, '❌ 再试一次！');
+    return;
+  }
+
+  oooAnswered = true;
+  revealOooAnswers(q);
+  showFeedback(false, null, `Odd one: ${q.answer.character} (${q.answer.pinyin})`);
+  document.getElementById('next-btn').style.display = 'block';
+  document.getElementById('next-btn').onclick = nextOoo;
 }
 
 function nextOoo() {
@@ -1642,6 +1681,7 @@ const WC_ROUNDS = 10; // questions per game
 let wcQuestions     = []; // array of {wordA, bridge, wordB, distractors}
 let wcQ             = 0;
 let wcTotalCorrect  = 0;
+let wcAttempt       = 0;
 
 function buildWcQuestions() {
   // ── 只用两字词 ──────────────────────────────────────────────────────────
@@ -1727,6 +1767,7 @@ function startWordChain() {
 
 function renderWcQuestion() {
   const q = wcQuestions[wcQ];
+  wcAttempt = 0;
   document.getElementById('wc-progress-bar').style.width = (wcQ / wcQuestions.length * 100) + '%';
   document.getElementById('wc-counter').textContent = `${wcQ + 1} / ${wcQuestions.length}`;
 
@@ -1799,16 +1840,7 @@ function renderWcQuestion() {
   fb.textContent = '';
 }
 
-function selectWcBridge(btn, chosen, q, optEl) {
-  optEl.querySelectorAll('.wc-opt-btn').forEach(b => {
-    b.disabled = true;
-    if (b.textContent === q.bridge) b.classList.add('correct');
-    else if (b === btn && chosen !== q.bridge) b.classList.add('wrong');
-  });
-
-  const isCorrect = chosen === q.bridge;
-
-  // 揭晓：把三格全部显示出来
+function revealWcSteps(q, isCorrect) {
   const stepsEl  = document.getElementById('wc-chain-steps');
   const hiddens  = stepsEl.querySelectorAll('.wc-char.hidden');
   const bridges  = stepsEl.querySelectorAll('.wc-char.bridge');
@@ -1818,21 +1850,47 @@ function selectWcBridge(btn, chosen, q, optEl) {
   // bridge chars
   if (bridges[0]) { bridges[0].textContent = q.bridge[0]; bridges[0].classList.add(isCorrect ? 'correct' : 'wrong-reveal'); }
   if (bridges[1]) { bridges[1].textContent = q.bridge[1]; bridges[1].classList.add(isCorrect ? 'correct' : 'wrong-reveal'); }
+}
 
-  markWcUsed(q);
-
+function selectWcBridge(btn, chosen, q, optEl) {
+  const isCorrect = chosen === q.bridge;
   const fb = document.getElementById('wc-feedback');
+
   if (isCorrect) {
+    optEl.querySelectorAll('.wc-opt-btn').forEach(b => {
+      b.disabled = true;
+      if (b.textContent === q.bridge) b.classList.add('correct');
+    });
+    revealWcSteps(q, true);
+    markWcUsed(q);
     totalScore += 10; wcTotalCorrect++;
     updateScoreBadge();
     fb.className = 'wc-feedback show correct';
     fb.textContent = `✨ ${q.wordA} → ${q.bridge} → ${q.wordB}  接对了！`;
     setTimeout(nextWcQuestion, 1400);
-  } else {
-    fb.className = 'wc-feedback show wrong';
-    fb.textContent = `❌ 桥梁词是「${q.bridge}」→ ${q.wordA} → ${q.bridge} → ${q.wordB}`;
-    setTimeout(nextWcQuestion, 2400);
+    return;
   }
+
+  // Wrong pick
+  btn.classList.add('wrong');
+  btn.disabled = true;
+
+  if (wcAttempt === 0) {
+    wcAttempt = 1;
+    fb.className = 'wc-feedback show retry';
+    fb.textContent = '❌ 再试一次！';
+    return;
+  }
+
+  optEl.querySelectorAll('.wc-opt-btn').forEach(b => {
+    b.disabled = true;
+    if (b.textContent === q.bridge) b.classList.add('correct');
+  });
+  revealWcSteps(q, false);
+  markWcUsed(q);
+  fb.className = 'wc-feedback show wrong';
+  fb.textContent = `❌ 桥梁词是「${q.bridge}」→ ${q.wordA} → ${q.bridge} → ${q.wordB}`;
+  setTimeout(nextWcQuestion, 2400);
 }
 
 function nextWcQuestion() {
