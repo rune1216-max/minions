@@ -391,12 +391,6 @@
         <span class="sub">Complete the word</span>
         <span class="attempts" id="att-fill-blank"></span>
       </button>
-      <button class="game-btn" data-game="true-false-meaning" onclick="startGame('true-false-meaning')">
-        <span class="icon">词→义</span>
-        <span class="label">Pick the Meaning</span>
-        <span class="sub">Choose the right meaning</span>
-        <span class="attempts" id="att-true-false-meaning"></span>
-      </button>
       <button class="game-btn" data-game="word-link" onclick="startGame('word-link')">
         <span class="icon">🔗</span>
         <span class="label">Word Link</span>
@@ -578,8 +572,8 @@ let totalScore = 0, gameCorrect = 0, currentGame = '';
 let questions = [], currentQ = 0, answered = false, attemptCount = 0;
 const QUESTIONS_PER_GAME = 10;
 
-const QUIZ_ORDER = ['odd-one-out','listen-word','char-pinyin-mix','meaning-match','fill-blank','true-false-meaning','word-link','word-chain'];
-const QUIZ_NAMES = { 'char-pinyin-mix':'Char & Pinyin','listen-word':'Listen & Pick','meaning-match':'Word Match','fill-blank':'Fill the Blank','true-false-meaning':'Pick the Meaning','word-link':'Word Link','odd-one-out':'Odd One Out','word-chain':'Word Chain' };
+const QUIZ_ORDER = ['odd-one-out','listen-word','char-pinyin-mix','meaning-match','fill-blank','word-link','word-chain'];
+const QUIZ_NAMES = { 'char-pinyin-mix':'Char & Pinyin','listen-word':'Listen & Pick','meaning-match':'Word Match','fill-blank':'Fill the Blank','word-link':'Word Link','odd-one-out':'Odd One Out','word-chain':'Word Chain' };
 
 const quizState = {};
 QUIZ_ORDER.forEach(g => quizState[g] = { passed: false, scores: [] });
@@ -823,7 +817,7 @@ function startGame(type) {
   if (type === 'word-link') { startWordLink(); return; }
   if (type === 'odd-one-out') { startOddOneOut(); return; }
   if (type === 'word-chain') { startWordChain(); return; }
-  if ((type==='meaning-match'||type==='fill-blank'||type==='true-false-meaning') && wordData.length<4) { alert('Need at least 4 words!'); return; }
+  if ((type==='meaning-match'||type==='fill-blank') && wordData.length<4) { alert('Need at least 4 words!'); return; }
   if (type==='char-pinyin-mix' && charData.length<5) { alert('Need at least 5 characters!'); return; }
   if (type==='listen-word' && wordData.length<4) { alert('Need at least 4 words!'); return; }
   currentGame = type; currentQ = 0; gameCorrect = 0; answered = false;
@@ -849,13 +843,6 @@ function generateQuestions(type) {
     return shuffle(wordData).slice(0, QUESTIONS_PER_GAME).map(item => {
       const wrong = shuffle(wordData.filter(d => d.word !== item.word)).slice(0, 3).map(d => d.word);
       return { item, type, answer: item.word, options: shuffle([item.word, ...wrong]) };
-    });
-  }
-  if (type === 'true-false-meaning') {
-    const eligible = wordData.filter(d => d.meaning && d.meaning.trim());
-    return shuffle(eligible).slice(0, QUESTIONS_PER_GAME).map(item => {
-      const wrong = shuffle(eligible.filter(d => d.word !== item.word && d.meaning !== item.meaning)).slice(0,3).map(d => d.meaning);
-      return { item, type, answer: item.meaning, options: shuffle([item.meaning, ...wrong]) };
     });
   }
   if (type === 'meaning-match') {
@@ -1011,10 +998,6 @@ function renderQuestion() {
     wfDisp.style.display='flex';
     wfDisp.innerHTML = q.chars.map((ch,i) => i===q.blankIdx ? `<div class="char-tile blank">？</div>` : `<div class="char-tile">${ch}</div>`).join('');
     renderOptions(q.options, q.answer, 'character');
-  } else if (q.type==='true-false-meaning') {
-    document.getElementById('game-title').textContent = '🌍 Pick the Meaning';
-    labelEl.textContent='What does this word mean?'; charEl.textContent=q.item.word; charEl.style.fontSize='3.5rem'; pinEl.textContent=hintEl.textContent='';
-    renderOptions(q.options, q.answer, 'meaning');
   }
 }
 
