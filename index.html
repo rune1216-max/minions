@@ -841,6 +841,60 @@ function markFreshnessUsed(key, pool, keyFn, usedKeys) {
   const remaining = order.filter(k => poolKeySet.has(k) && !usedKeys.includes(k));
   saveFreshnessOrder(key, [...remaining, ...usedKeys]);
 }
+
+// ---- 最近学的N个字，用于出题时保证约一半来自新学内容 ----
+const RECENT_CHAR_COUNT = 50;
+
+// 按Characters表Col C（serialNo）取"最近学的"N个字，返回字符集合
+function getRecentCharKeys(n = RECENT_CHAR_COUNT) {
+  return new Set(
+    [...charData].sort((a, b) => b.serialNo - a.serialNo).slice(0, n).map(d => d.character)
+  );
+}
+
+// 把pool拆成 {recent, rest} 两组：
+// isCharPool=true → item本身是字，直接判断是否在recentCharKeys里；
+// isCharPool=false → item是词，只要词里有≥1个字命中recentCharKeys就算recent。
+function splitByRecency(pool, recentCharKeys, isCharPool) {
+  const recent = [], rest = [];
+  for (const item of pool) {
+    const hit = isCharPool
+      ? recentCharKeys.has(item.character)
+      : [...item.word].some(c => recentCharKeys.has(c));
+    (hit ? recent : rest).push(item);
+  }
+  return { recent, rest };
+}
+
+// 从pool里抽count个：优先保证约一半来自recent子集（各自按freshness排序），
+// 任一边不够时从另一边补足，保证总数不变；最后写回freshness队列（记入完整pool的key集合下）。
+function drawHalfRecent(freshnessKey, pool, keyFn, count, recentCharKeys, isCharPool) {
+  const { recent, rest } = splitByRecency(pool, recentCharKeys, isCharPool);
+  const half = Math.ceil(count / 2);
+
+  const recentOrdered = orderByFreshness(freshnessKey, recent, keyFn);
+  const restOrdered   = orderByFreshness(freshnessKey, rest, keyFn);
+
+  let pickedRecent = recentOrdered.slice(0, half);
+  let pickedRest   = restOrdered.slice(0, count - half);
+
+  if (pickedRest.length < count - half) {
+    const need = (count - half) - pickedRest.length;
+    const usedKeys = new Set(pickedRecent.map(keyFn));
+    const extra = recentOrdered.filter(d => !usedKeys.has(keyFn(d))).slice(0, need);
+    pickedRecent = [...pickedRecent, ...extra];
+  }
+  if (pickedRecent.length < half) {
+    const need = half - pickedRecent.length;
+    const usedKeys = new Set(pickedRest.map(keyFn));
+    const extra = restOrdered.filter(d => !usedKeys.has(keyFn(d))).slice(0, need);
+    pickedRest = [...pickedRest, ...extra];
+  }
+
+  const picked = shuffle([...pickedRecent, ...pickedRest]);
+  markFreshnessUsed(freshnessKey, pool, keyFn, picked.map(keyFn));
+  return picked;
+}
 function pinyinBase(p) { return p.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\d/g,'').toLowerCase(); }
 
 // ── START GAME ─────────────────────────────────────────────────────────────
@@ -858,8 +912,7 @@ function startGame(type) {
 
 function generateQuestions(type) {
   if (type === 'char-pinyin-mix') {
-    const picked = orderByFreshness('char-pinyin-mix', charData, d=>d.character).slice(0, QUESTIONS_PER_GAME);
-    markFreshnessUsed('char-pinyin-mix', charData, d=>d.character, picked.map(d=>d.character));
+    const picked = drawHalfRecent('char-pinyin-mix', charData, d=>d.character, QUESTIONS_PER_GAME, getRecentCharKeys(), true);
     return picked.map(item => {
       const dir = Math.random() > 0.5 ? 'char-to-pinyin' : 'pinyin-to-char';
       if (dir === 'char-to-pinyin') {
@@ -873,16 +926,14 @@ function generateQuestions(type) {
     });
   }
   if (type === 'listen-word') {
-    const picked = orderByFreshness('listen-word', wordData, d=>d.word).slice(0, QUESTIONS_PER_GAME);
-    markFreshnessUsed('listen-word', wordData, d=>d.word, picked.map(d=>d.word));
+    const picked = drawHalfRecent('listen-word', wordData, d=>d.word, QUESTIONS_PER_GAME, getRecentCharKeys(), false);
     return picked.map(item => {
       const wrong = shuffle(wordData.filter(d => d.word !== item.word)).slice(0, 3).map(d => d.word);
       return { item, type, answer: item.word, options: shuffle([item.word, ...wrong]) };
     });
   }
   if (type === 'meaning-match') {
-    const picked = orderByFreshness('meaning-match', wordData, d=>d.word).slice(0, QUESTIONS_PER_GAME);
-    markFreshnessUsed('meaning-match', wordData, d=>d.word, picked.map(d=>d.word));
+    const picked = drawHalfRecent('meaning-match', wordData, d=>d.word, QUESTIONS_PER_GAME, getRecentCharKeys(), false);
     return picked.map(item => {
       const dir = Math.random() > 0.5 ? 'word-to-meaning' : 'meaning-to-word';
       if (dir === 'word-to-meaning') {
@@ -896,8 +947,7 @@ function generateQuestions(type) {
   }
   if (type === 'fill-blank') {
     const eligible = wordData.filter(d=>[...d.word].length>=2);
-    const picked = orderByFreshness('fill-blank', eligible, d=>d.word).slice(0, QUESTIONS_PER_GAME);
-    markFreshnessUsed('fill-blank', eligible, d=>d.word, picked.map(d=>d.word));
+    const picked = drawHalfRecent('fill-blank', eligible, d=>d.word, QUESTIONS_PER_GAME, getRecentCharKeys(), false);
     return picked.map(item => {
       const chars = [...item.word];
       const blankIdx = Math.floor(Math.random()*chars.length);
@@ -1537,29 +1587,44 @@ function buildOooQuestions() {
 
   const qs = [];
   const usedKeys = [];
-  const orderedEligible = orderByFreshness('odd-one-out', eligible, d => d.character);
 
-  for (const item of orderedEligible) {
-    if (qs.length >= OOO_QUESTIONS) break;
-    const oddTone = getTone(item.pinyin);
-    // Pick 3 chars with same tone (different from oddTone)
-    const sameTones = [1,2,3,4].filter(t => t !== oddTone);
-    // Randomly pick one of the same-tone groups for the 3
-    const chosenSameTone = sameTones[Math.floor(Math.random() * sameTones.length)];
-    const sameGroup = shuffle(byTone[chosenSameTone]).filter(d => d.character !== item.character);
-    if (sameGroup.length < 3) continue;
-    const three = sameGroup.slice(0, 3);
-    const four = shuffle([item, ...three]);
-    qs.push({
-      chars: four,
-      answer: item,
-      oddTone,
-      sameTone: chosenSameTone
-    });
-    usedKeys.push(item.character);
+  const recentCharKeys = getRecentCharKeys();
+  const { recent, rest } = splitByRecency(eligible, recentCharKeys, true);
+  const half = Math.ceil(OOO_QUESTIONS / 2);
+  const recentOrdered = orderByFreshness('odd-one-out', recent, d => d.character);
+  const restOrdered   = orderByFreshness('odd-one-out', rest, d => d.character);
+
+  function tryBuild(list, limit) {
+    for (const item of list) {
+      if (qs.length >= limit) break;
+      if (usedKeys.includes(item.character)) continue;
+      const oddTone = getTone(item.pinyin);
+      // Pick 3 chars with same tone (different from oddTone)
+      const sameTones = [1,2,3,4].filter(t => t !== oddTone);
+      // Randomly pick one of the same-tone groups for the 3
+      const chosenSameTone = sameTones[Math.floor(Math.random() * sameTones.length)];
+      const sameGroup = shuffle(byTone[chosenSameTone]).filter(d => d.character !== item.character);
+      if (sameGroup.length < 3) continue;
+      const three = sameGroup.slice(0, 3);
+      const four = shuffle([item, ...three]);
+      qs.push({
+        chars: four,
+        answer: item,
+        oddTone,
+        sameTone: chosenSameTone
+      });
+      usedKeys.push(item.character);
+    }
   }
+
+  tryBuild(recentOrdered, half);            // 先尽量凑够一半来自最近学的字
+  tryBuild(restOrdered, OOO_QUESTIONS);     // 剩余名额（含recent不够的缺口）从其余字里补
+  if (qs.length < OOO_QUESTIONS) {
+    tryBuild(recentOrdered, OOO_QUESTIONS); // rest也不够时，回头把recent里没用上的再兜一遍
+  }
+
   markFreshnessUsed('odd-one-out', eligible, d => d.character, usedKeys);
-  return qs;
+  return shuffle(qs);
 }
 
 function startOddOneOut() {
