@@ -810,6 +810,37 @@ function applyThreshold() {
 }
 
 function shuffle(arr) { return [...arr].sort(() => Math.random() - 0.5); }
+
+// ---- Local "avoid repeats" freshness queue (方案B: 本地不放回抽卡池) ----
+// 存于 localStorage，每个题型独立维护一条队列。
+// 从未出现过的字/词排最前（优先抽到），用过的排到队尾（最后才会再抽到）。
+function loadFreshnessOrder(key) {
+  try { const raw = localStorage.getItem('freshness_' + key); return raw ? JSON.parse(raw) : []; }
+  catch(e) { return []; }
+}
+function saveFreshnessOrder(key, arr) {
+  try { localStorage.setItem('freshness_' + key, JSON.stringify(arr)); } catch(e) {}
+}
+
+// 返回按"最久未用优先"排序后的pool（不会修改/保存队列，只是读取排序）
+function orderByFreshness(key, pool, keyFn) {
+  const order = loadFreshnessOrder(key);
+  const poolKeySet = new Set(pool.map(keyFn));
+  const seenKnown  = order.filter(k => poolKeySet.has(k)); // 丢弃已经不在当前pool里的旧记录（比如阈值改了）
+  const seenSet    = new Set(seenKnown);
+  const neverSeen  = shuffle(pool.filter(p => !seenSet.has(keyFn(p)))); // 从没抽过的，最优先
+  const seenOrdered = seenKnown.map(k => pool.find(p => keyFn(p) === k)).filter(Boolean);
+  return [...neverSeen, ...seenOrdered];
+}
+
+// 把本局实际用到的字/词标记为"刚用过"，排到队尾
+function markFreshnessUsed(key, pool, keyFn, usedKeys) {
+  if (!usedKeys.length) return;
+  const order = loadFreshnessOrder(key);
+  const poolKeySet = new Set(pool.map(keyFn));
+  const remaining = order.filter(k => poolKeySet.has(k) && !usedKeys.includes(k));
+  saveFreshnessOrder(key, [...remaining, ...usedKeys]);
+}
 function pinyinBase(p) { return p.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\d/g,'').toLowerCase(); }
 
 // ── START GAME ─────────────────────────────────────────────────────────────
@@ -827,7 +858,9 @@ function startGame(type) {
 
 function generateQuestions(type) {
   if (type === 'char-pinyin-mix') {
-    return shuffle(charData).slice(0, QUESTIONS_PER_GAME).map(item => {
+    const picked = orderByFreshness('char-pinyin-mix', charData, d=>d.character).slice(0, QUESTIONS_PER_GAME);
+    markFreshnessUsed('char-pinyin-mix', charData, d=>d.character, picked.map(d=>d.character));
+    return picked.map(item => {
       const dir = Math.random() > 0.5 ? 'char-to-pinyin' : 'pinyin-to-char';
       if (dir === 'char-to-pinyin') {
         const wrong = shuffle(charData.filter(d=>d.character!==item.character)).slice(0,3).map(d=>d.pinyin);
@@ -840,13 +873,17 @@ function generateQuestions(type) {
     });
   }
   if (type === 'listen-word') {
-    return shuffle(wordData).slice(0, QUESTIONS_PER_GAME).map(item => {
+    const picked = orderByFreshness('listen-word', wordData, d=>d.word).slice(0, QUESTIONS_PER_GAME);
+    markFreshnessUsed('listen-word', wordData, d=>d.word, picked.map(d=>d.word));
+    return picked.map(item => {
       const wrong = shuffle(wordData.filter(d => d.word !== item.word)).slice(0, 3).map(d => d.word);
       return { item, type, answer: item.word, options: shuffle([item.word, ...wrong]) };
     });
   }
   if (type === 'meaning-match') {
-    return shuffle(wordData).slice(0, QUESTIONS_PER_GAME).map(item => {
+    const picked = orderByFreshness('meaning-match', wordData, d=>d.word).slice(0, QUESTIONS_PER_GAME);
+    markFreshnessUsed('meaning-match', wordData, d=>d.word, picked.map(d=>d.word));
+    return picked.map(item => {
       const dir = Math.random() > 0.5 ? 'word-to-meaning' : 'meaning-to-word';
       if (dir === 'word-to-meaning') {
         const wrong = shuffle(wordData.filter(d=>d.word!==item.word)).slice(0,3).map(d=>d.meaning);
@@ -859,7 +896,9 @@ function generateQuestions(type) {
   }
   if (type === 'fill-blank') {
     const eligible = wordData.filter(d=>[...d.word].length>=2);
-    return shuffle(eligible).slice(0, QUESTIONS_PER_GAME).map(item => {
+    const picked = orderByFreshness('fill-blank', eligible, d=>d.word).slice(0, QUESTIONS_PER_GAME);
+    markFreshnessUsed('fill-blank', eligible, d=>d.word, picked.map(d=>d.word));
+    return picked.map(item => {
       const chars = [...item.word];
       const blankIdx = Math.floor(Math.random()*chars.length);
       const answer = chars[blankIdx];
@@ -900,17 +939,17 @@ function lpSpeak() {
     if (hint) hint.textContent = 'Tap to hear again';
   };
 
-  // First: word at normal speed in Mandarin
+  // First: word at moderate speed in Mandarin
   const u1 = new SpeechSynthesisUtterance(q.item.word);
   u1.lang  = 'zh-CN';
-  u1.rate  = 0.6;
+  u1.rate  = 0.45;
   u1.pitch = 1.0;
   if (lpVoice) u1.voice = lpVoice;
 
-  // Second: same word slower for clarity
+  // Second: same word slower still for clarity
   const u2 = new SpeechSynthesisUtterance(q.item.word);
   u2.lang  = 'zh-CN';
-  u2.rate  = 0.35;
+  u2.rate  = 0.25;
   u2.pitch = 1.0;
   if (lpVoice) u2.voice = lpVoice;
 
@@ -1014,6 +1053,19 @@ function renderOptions(options, answer, mode) {
   });
 }
 
+function speakWordThenAdvance(word) {
+  if (!window.speechSynthesis) { setTimeout(nextQuestion, 800); return; }
+  lpInitVoice();
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(word);
+  u.lang = 'zh-CN'; u.rate = 0.6; u.pitch = 1.0;
+  if (lpVoice) u.voice = lpVoice;
+  const advance = () => setTimeout(nextQuestion, 400);
+  u.onend = advance;
+  u.onerror = advance;
+  speechSynthesis.speak(u);
+}
+
 function selectOption(btn, chosen, answer) {
   if (answered) return;
   const isCorrect = chosen === answer;
@@ -1030,6 +1082,9 @@ function selectOption(btn, chosen, answer) {
     if (q && q.type === 'listen-word') {
       showFeedback(true, null, `${q.item.word} = ${q.item.pinyin}`);
       setTimeout(nextQuestion, 1200);
+    } else if (q && (q.type === 'meaning-match' || q.type === 'fill-blank')) {
+      showFeedback(true, answer);
+      setTimeout(() => speakWordThenAdvance(q.item.word), 500);
     } else {
       showFeedback(true, answer);
       setTimeout(nextQuestion, 800);
@@ -1109,7 +1164,7 @@ function showResult() {
 }
 
 function playAgain() { gameCorrect=0; startGame(currentGame); }
-function goHome()    { document.getElementById('play-again-btn').style.display='block'; showScreen('home-screen'); updateHomeButtons(); }
+function goHome()    { if (window.speechSynthesis) speechSynthesis.cancel(); document.getElementById('play-again-btn').style.display='block'; showScreen('home-screen'); updateHomeButtons(); }
 function showScreen(id) { document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
 function updateScoreBadge() { document.getElementById('total-score').textContent = totalScore; }
 
@@ -1481,9 +1536,10 @@ function buildOooQuestions() {
   });
 
   const qs = [];
-  const shuffledAll = shuffle(eligible);
+  const usedKeys = [];
+  const orderedEligible = orderByFreshness('odd-one-out', eligible, d => d.character);
 
-  for (const item of shuffledAll) {
+  for (const item of orderedEligible) {
     if (qs.length >= OOO_QUESTIONS) break;
     const oddTone = getTone(item.pinyin);
     // Pick 3 chars with same tone (different from oddTone)
@@ -1500,7 +1556,9 @@ function buildOooQuestions() {
       oddTone,
       sameTone: chosenSameTone
     });
+    usedKeys.push(item.character);
   }
+  markFreshnessUsed('odd-one-out', eligible, d => d.character, usedKeys);
   return qs;
 }
 
@@ -1835,6 +1893,29 @@ function revealWcSteps(q, isCorrect) {
   if (bridges[1]) { bridges[1].textContent = q.bridge[1]; bridges[1].classList.add(isCorrect ? 'correct' : 'wrong-reveal'); }
 }
 
+function wcSpeakWords(wordA, wordB) {
+  if (!window.speechSynthesis) { setTimeout(nextWcQuestion, 800); return; }
+  lpInitVoice();
+  speechSynthesis.cancel();
+
+  const mk = (text) => {
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'zh-CN'; u.rate = 0.6; u.pitch = 1.0;
+    if (lpVoice) u.voice = lpVoice;
+    return u;
+  };
+  const u1 = mk(wordA);
+  const u2 = mk(wordB);
+  const advance = () => setTimeout(nextWcQuestion, 400);
+
+  u1.onend   = () => speechSynthesis.speak(u2);
+  u2.onend   = advance;
+  u1.onerror = advance;
+  u2.onerror = advance;
+
+  speechSynthesis.speak(u1);
+}
+
 function selectWcBridge(btn, chosen, q, optEl) {
   const isCorrect = chosen === q.bridge;
   const fb = document.getElementById('wc-feedback');
@@ -1850,7 +1931,7 @@ function selectWcBridge(btn, chosen, q, optEl) {
     updateScoreBadge();
     fb.className = 'wc-feedback show correct';
     fb.textContent = `✨ ${q.wordA} → ${q.bridge} → ${q.wordB}  接对了！`;
-    setTimeout(nextWcQuestion, 1400);
+    setTimeout(() => wcSpeakWords(q.wordA, q.wordB), 600);
     return;
   }
 
