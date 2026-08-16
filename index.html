@@ -810,91 +810,6 @@ function applyThreshold() {
 }
 
 function shuffle(arr) { return [...arr].sort(() => Math.random() - 0.5); }
-
-// ---- Local "avoid repeats" freshness queue (方案B: 本地不放回抽卡池) ----
-// 存于 localStorage，每个题型独立维护一条队列。
-// 从未出现过的字/词排最前（优先抽到），用过的排到队尾（最后才会再抽到）。
-function loadFreshnessOrder(key) {
-  try { const raw = localStorage.getItem('freshness_' + key); return raw ? JSON.parse(raw) : []; }
-  catch(e) { return []; }
-}
-function saveFreshnessOrder(key, arr) {
-  try { localStorage.setItem('freshness_' + key, JSON.stringify(arr)); } catch(e) {}
-}
-
-// 返回按"最久未用优先"排序后的pool（不会修改/保存队列，只是读取排序）
-function orderByFreshness(key, pool, keyFn) {
-  const order = loadFreshnessOrder(key);
-  const poolKeySet = new Set(pool.map(keyFn));
-  const seenKnown  = order.filter(k => poolKeySet.has(k)); // 丢弃已经不在当前pool里的旧记录（比如阈值改了）
-  const seenSet    = new Set(seenKnown);
-  const neverSeen  = shuffle(pool.filter(p => !seenSet.has(keyFn(p)))); // 从没抽过的，最优先
-  const seenOrdered = seenKnown.map(k => pool.find(p => keyFn(p) === k)).filter(Boolean);
-  return [...neverSeen, ...seenOrdered];
-}
-
-// 把本局实际用到的字/词标记为"刚用过"，排到队尾
-function markFreshnessUsed(key, pool, keyFn, usedKeys) {
-  if (!usedKeys.length) return;
-  const order = loadFreshnessOrder(key);
-  const poolKeySet = new Set(pool.map(keyFn));
-  const remaining = order.filter(k => poolKeySet.has(k) && !usedKeys.includes(k));
-  saveFreshnessOrder(key, [...remaining, ...usedKeys]);
-}
-
-// ---- 最近学的N个字，用于出题时保证约一半来自新学内容 ----
-const RECENT_CHAR_COUNT = 50;
-
-// 按Characters表Col C（serialNo）取"最近学的"N个字，返回字符集合
-function getRecentCharKeys(n = RECENT_CHAR_COUNT) {
-  return new Set(
-    [...charData].sort((a, b) => b.serialNo - a.serialNo).slice(0, n).map(d => d.character)
-  );
-}
-
-// 把pool拆成 {recent, rest} 两组：
-// isCharPool=true → item本身是字，直接判断是否在recentCharKeys里；
-// isCharPool=false → item是词，只要词里有≥1个字命中recentCharKeys就算recent。
-function splitByRecency(pool, recentCharKeys, isCharPool) {
-  const recent = [], rest = [];
-  for (const item of pool) {
-    const hit = isCharPool
-      ? recentCharKeys.has(item.character)
-      : [...item.word].some(c => recentCharKeys.has(c));
-    (hit ? recent : rest).push(item);
-  }
-  return { recent, rest };
-}
-
-// 从pool里抽count个：优先保证约一半来自recent子集（各自按freshness排序），
-// 任一边不够时从另一边补足，保证总数不变；最后写回freshness队列（记入完整pool的key集合下）。
-function drawHalfRecent(freshnessKey, pool, keyFn, count, recentCharKeys, isCharPool) {
-  const { recent, rest } = splitByRecency(pool, recentCharKeys, isCharPool);
-  const half = Math.ceil(count / 2);
-
-  const recentOrdered = orderByFreshness(freshnessKey, recent, keyFn);
-  const restOrdered   = orderByFreshness(freshnessKey, rest, keyFn);
-
-  let pickedRecent = recentOrdered.slice(0, half);
-  let pickedRest   = restOrdered.slice(0, count - half);
-
-  if (pickedRest.length < count - half) {
-    const need = (count - half) - pickedRest.length;
-    const usedKeys = new Set(pickedRecent.map(keyFn));
-    const extra = recentOrdered.filter(d => !usedKeys.has(keyFn(d))).slice(0, need);
-    pickedRecent = [...pickedRecent, ...extra];
-  }
-  if (pickedRecent.length < half) {
-    const need = half - pickedRecent.length;
-    const usedKeys = new Set(pickedRest.map(keyFn));
-    const extra = restOrdered.filter(d => !usedKeys.has(keyFn(d))).slice(0, need);
-    pickedRest = [...pickedRest, ...extra];
-  }
-
-  const picked = shuffle([...pickedRecent, ...pickedRest]);
-  markFreshnessUsed(freshnessKey, pool, keyFn, picked.map(keyFn));
-  return picked;
-}
 function pinyinBase(p) { return p.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\d/g,'').toLowerCase(); }
 
 // ── START GAME ─────────────────────────────────────────────────────────────
@@ -910,10 +825,26 @@ function startGame(type) {
   showScreen('game-screen'); updateScoreBadge(); renderQuestion();
 }
 
+// Distractors for word-level options: prefer same character-length as the
+// correct word (so options can't be eliminated just by glancing at length).
+// Falls back to closest-length words if not enough same-length candidates exist.
+function pickSameLengthWordDistractors(pool, item, count) {
+  const targetLen = [...item.word].length;
+  const candidates = pool.filter(d => d.word !== item.word);
+  const sameLen = shuffle(candidates.filter(d => [...d.word].length === targetLen));
+  let picked = sameLen.slice(0, count);
+  if (picked.length < count) {
+    const pickedWords = new Set(picked.map(d => d.word));
+    const remaining = shuffle(candidates.filter(d => !pickedWords.has(d.word)))
+      .sort((a, b) => Math.abs([...a.word].length - targetLen) - Math.abs([...b.word].length - targetLen));
+    picked = picked.concat(remaining.slice(0, count - picked.length));
+  }
+  return picked.map(d => d.word);
+}
+
 function generateQuestions(type) {
   if (type === 'char-pinyin-mix') {
-    const picked = drawHalfRecent('char-pinyin-mix', charData, d=>d.character, QUESTIONS_PER_GAME, getRecentCharKeys(), true);
-    return picked.map(item => {
+    return shuffle(charData).slice(0, QUESTIONS_PER_GAME).map(item => {
       const dir = Math.random() > 0.5 ? 'char-to-pinyin' : 'pinyin-to-char';
       if (dir === 'char-to-pinyin') {
         const wrong = shuffle(charData.filter(d=>d.character!==item.character)).slice(0,3).map(d=>d.pinyin);
@@ -926,29 +857,26 @@ function generateQuestions(type) {
     });
   }
   if (type === 'listen-word') {
-    const picked = drawHalfRecent('listen-word', wordData, d=>d.word, QUESTIONS_PER_GAME, getRecentCharKeys(), false);
-    return picked.map(item => {
-      const wrong = shuffle(wordData.filter(d => d.word !== item.word)).slice(0, 3).map(d => d.word);
+    return shuffle(wordData).slice(0, QUESTIONS_PER_GAME).map(item => {
+      const wrong = pickSameLengthWordDistractors(wordData, item, 3);
       return { item, type, answer: item.word, options: shuffle([item.word, ...wrong]) };
     });
   }
   if (type === 'meaning-match') {
-    const picked = drawHalfRecent('meaning-match', wordData, d=>d.word, QUESTIONS_PER_GAME, getRecentCharKeys(), false);
-    return picked.map(item => {
+    return shuffle(wordData).slice(0, QUESTIONS_PER_GAME).map(item => {
       const dir = Math.random() > 0.5 ? 'word-to-meaning' : 'meaning-to-word';
       if (dir === 'word-to-meaning') {
         const wrong = shuffle(wordData.filter(d=>d.word!==item.word)).slice(0,3).map(d=>d.meaning);
         return { item, type, dir, answer: item.meaning, options: shuffle([item.meaning,...wrong]) };
       } else {
-        const wrong = shuffle(wordData.filter(d=>d.word!==item.word)).slice(0,3).map(d=>d.word);
+        const wrong = pickSameLengthWordDistractors(wordData, item, 3);
         return { item, type, dir, answer: item.word, options: shuffle([item.word,...wrong]) };
       }
     });
   }
   if (type === 'fill-blank') {
     const eligible = wordData.filter(d=>[...d.word].length>=2);
-    const picked = drawHalfRecent('fill-blank', eligible, d=>d.word, QUESTIONS_PER_GAME, getRecentCharKeys(), false);
-    return picked.map(item => {
+    return shuffle(eligible).slice(0, QUESTIONS_PER_GAME).map(item => {
       const chars = [...item.word];
       const blankIdx = Math.floor(Math.random()*chars.length);
       const answer = chars[blankIdx];
@@ -989,17 +917,17 @@ function lpSpeak() {
     if (hint) hint.textContent = 'Tap to hear again';
   };
 
-  // First: word at moderate speed in Mandarin
+  // First: word at normal speed in Mandarin
   const u1 = new SpeechSynthesisUtterance(q.item.word);
   u1.lang  = 'zh-CN';
-  u1.rate  = 0.45;
+  u1.rate  = 0.6;
   u1.pitch = 1.0;
   if (lpVoice) u1.voice = lpVoice;
 
-  // Second: same word slower still for clarity
+  // Second: same word slower for clarity
   const u2 = new SpeechSynthesisUtterance(q.item.word);
   u2.lang  = 'zh-CN';
-  u2.rate  = 0.25;
+  u2.rate  = 0.35;
   u2.pitch = 1.0;
   if (lpVoice) u2.voice = lpVoice;
 
@@ -1103,19 +1031,6 @@ function renderOptions(options, answer, mode) {
   });
 }
 
-function speakWordThenAdvance(word) {
-  if (!window.speechSynthesis) { setTimeout(nextQuestion, 800); return; }
-  lpInitVoice();
-  speechSynthesis.cancel();
-  const u = new SpeechSynthesisUtterance(word);
-  u.lang = 'zh-CN'; u.rate = 0.6; u.pitch = 1.0;
-  if (lpVoice) u.voice = lpVoice;
-  const advance = () => setTimeout(nextQuestion, 400);
-  u.onend = advance;
-  u.onerror = advance;
-  speechSynthesis.speak(u);
-}
-
 function selectOption(btn, chosen, answer) {
   if (answered) return;
   const isCorrect = chosen === answer;
@@ -1132,9 +1047,6 @@ function selectOption(btn, chosen, answer) {
     if (q && q.type === 'listen-word') {
       showFeedback(true, null, `${q.item.word} = ${q.item.pinyin}`);
       setTimeout(nextQuestion, 1200);
-    } else if (q && (q.type === 'meaning-match' || q.type === 'fill-blank')) {
-      showFeedback(true, answer);
-      setTimeout(() => speakWordThenAdvance(q.item.word), 500);
     } else {
       showFeedback(true, answer);
       setTimeout(nextQuestion, 800);
@@ -1214,7 +1126,7 @@ function showResult() {
 }
 
 function playAgain() { gameCorrect=0; startGame(currentGame); }
-function goHome()    { if (window.speechSynthesis) speechSynthesis.cancel(); document.getElementById('play-again-btn').style.display='block'; showScreen('home-screen'); updateHomeButtons(); }
+function goHome()    { document.getElementById('play-again-btn').style.display='block'; showScreen('home-screen'); updateHomeButtons(); }
 function showScreen(id) { document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active')); document.getElementById(id).classList.add('active'); }
 function updateScoreBadge() { document.getElementById('total-score').textContent = totalScore; }
 
@@ -1241,9 +1153,9 @@ let wlRound        = 0;
 let wlPairs        = [];
 let wlSelected     = null;
 let wlMatches      = {};
-let wlConfirmed    = false;
 let wlRoundCorrect = 0;
 let wlTotalCorrect = 0;
+let wlAttemptNum   = 0; // 0 = first pass this round, 1 = retry-after-mistake (final)
 
 function buildAllWordLinkPairs() {
   const needed = WL_ROUNDS * WL_PER_ROUND;
@@ -1308,7 +1220,7 @@ function startWlRound() {
   wlPairs       = wlAllPairs.slice(offset, offset + WL_PER_ROUND);
   wlSelected     = null;
   wlMatches      = {};
-  wlConfirmed    = false;
+  wlAttemptNum   = 0;
   wlRoundCorrect = 0;
   renderWordLink();
 }
@@ -1349,11 +1261,8 @@ function renderWordLink() {
 }
 
 function wlClickLeft(idx) {
-  // Allow re-clicking an already-matched (non-confirmed) left item to undo it
-  if (wlMatches.hasOwnProperty(idx) && !wlConfirmed) {
-    wlUndoMatch(idx);
-    return;
-  }
+  // Once matched, a left item is locked — no manual undo. Mistakes are only
+  // cleared automatically by evaluateRound() on the first wrong submission.
   if (wlMatches.hasOwnProperty(idx)) return;
   wlSelected = idx;
   document.querySelectorAll('#wl-left .wl-item').forEach(el => {
@@ -1361,54 +1270,19 @@ function wlClickLeft(idx) {
   });
 }
 
-function wlUndoMatch(leftIdx) {
-  const rightPairIdx = wlMatches[leftIdx];
-  delete wlMatches[leftIdx];
-
-  // Reset left item
-  const leftEl = document.querySelector(`#wl-left .wl-item[data-idx="${leftIdx}"]`);
-  if (leftEl) {
-    leftEl.classList.remove('matched-ok', 'matched-wrong', 'selected');
-    leftEl.onclick = () => wlClickLeft(leftIdx);
-  }
-  // Reset right item
-  const rightEl = document.querySelector(`#wl-right .wl-item[data-pairidx="${rightPairIdx}"]`);
-  if (rightEl) {
-    rightEl.classList.remove('matched-ok', 'matched-wrong');
-    rightEl.onclick = () => wlClickRight(rightPairIdx, rightEl);
-  }
-
-  // Clear feedback & done button, redraw lines
-  const fb = document.getElementById('wl-feedback');
-  fb.className = 'wl-feedback';
-  fb.textContent = '';
-  document.getElementById('wl-done-btn').style.display = 'none';
-
-  wlSelected = leftIdx;
-  leftEl && leftEl.classList.add('selected');
-  drawWlLines();
-  updateWlProgress();
-}
-
 function wlClickRight(pairIdx, rEl) {
   if (wlSelected === null) return;
-  if (wlConfirmed) return;
-
-  // If this right item is already matched, undo that match first
-  const existingLeft = Object.entries(wlMatches).find(([l, r]) => r === pairIdx);
-  if (existingLeft) {
-    wlUndoMatch(parseInt(existingLeft[0]));
-  }
+  // Once a right item is matched, it's locked — ignore further clicks on it.
+  if (Object.values(wlMatches).includes(pairIdx)) return;
 
   const leftIdx = wlSelected;
 
   const leftEl = document.querySelector(`#wl-left .wl-item[data-idx="${leftIdx}"]`);
   if (leftEl) {
-    leftEl.classList.remove('selected', 'matched-ok', 'matched-wrong');
+    leftEl.classList.remove('selected');
     leftEl.classList.add('matched-pending');
     leftEl.onclick = () => wlClickLeft(leftIdx);
   }
-  rEl.classList.remove('matched-ok', 'matched-wrong');
   rEl.classList.add('matched-pending');
   rEl.onclick = () => wlClickRight(pairIdx, rEl);
 
@@ -1425,6 +1299,8 @@ function wlClickRight(pairIdx, rEl) {
 
 function evaluateRound() {
   let roundCorrect = 0;
+  const wrongEntries = [];
+
   Object.entries(wlMatches).forEach(([lIdx, rPairIdx]) => {
     const isCorrect = parseInt(lIdx) === rPairIdx;
     const leftEl  = document.querySelector(`#wl-left .wl-item[data-idx="${lIdx}"]`);
@@ -1433,36 +1309,80 @@ function evaluateRound() {
       roundCorrect++;
       leftEl  && leftEl.classList.replace('matched-pending', 'matched-ok');
       rightEl && rightEl.classList.replace('matched-pending', 'matched-ok');
-      // Lock correct ones — can't undo
       leftEl  && (leftEl.onclick  = null);
       rightEl && (rightEl.onclick = null);
+    } else {
+      wrongEntries.push([lIdx, rPairIdx, leftEl, rightEl]);
     }
-    // Wrong ones stay as matched-pending so they can be clicked to undo
   });
 
-  // Redraw lines with correct/wrong colors
-  drawWlLines();
+  const isLastRound = wlRound === WL_ROUNDS - 1;
 
-  const roundPerfect = roundCorrect === WL_PER_ROUND;
-  const isLastRound  = wlRound === WL_ROUNDS - 1;
-
-  if (roundPerfect) {
+  // Perfect submission — lock in and advance, regardless of attempt number.
+  if (wrongEntries.length === 0) {
+    drawWlLines();
     wlRoundCorrect  = WL_PER_ROUND;
     wlTotalCorrect += WL_PER_ROUND;
     totalScore     += WL_PER_ROUND * 10;
     updateScoreBadge();
-
     if (isLastRound) {
       setTimeout(finishWordLink, 800);
     } else {
       showWlFeedback(true, null, `Round ${wlRound + 1} done! 🎉 Next round...`);
       setTimeout(() => { wlRound++; startWlRound(); }, 1200);
     }
+    return;
+  }
+
+  // First mistake this round — forgiven. Clear the wrong pairs only, keep
+  // the correct ones locked, and let the player retry the wrong slots.
+  if (wlAttemptNum === 0) {
+    wrongEntries.forEach(([lIdx, rPairIdx, leftEl, rightEl]) => {
+      delete wlMatches[lIdx];
+      if (leftEl) {
+        leftEl.classList.remove('matched-pending', 'selected');
+        leftEl.onclick = () => wlClickLeft(parseInt(lIdx));
+      }
+      if (rightEl) {
+        rightEl.classList.remove('matched-pending');
+        rightEl.onclick = () => wlClickRight(rPairIdx, rightEl);
+      }
+    });
+    wlAttemptNum = 1;
+    drawWlLines();
+    updateWlProgress();
+    showWlFeedback(false, null, `🤔 ${wrongEntries.length} 个连错了，已清除，再连一次（这次算数）`);
+    return;
+  }
+
+  // Second attempt — final. Lock the remaining mistakes as wrong and reveal
+  // the correct answer beside them; this result counts toward the score.
+  wrongEntries.forEach(([lIdx, rPairIdx, leftEl, rightEl]) => {
+    leftEl  && leftEl.classList.replace('matched-pending', 'matched-wrong');
+    rightEl && rightEl.classList.replace('matched-pending', 'matched-wrong');
+    leftEl  && (leftEl.onclick  = null);
+    rightEl && (rightEl.onclick = null);
+    const correctPair = wlPairs[parseInt(lIdx)];
+    if (leftEl && correctPair) {
+      const hint = document.createElement('div');
+      hint.className = 'wl-correct-hint';
+      hint.style.cssText = 'font-size:0.72rem;color:#6BCB77;margin-top:2px;font-weight:600;';
+      hint.textContent = `✓ ${correctPair.right}`;
+      leftEl.appendChild(hint);
+    }
+  });
+  drawWlLines();
+
+  wlRoundCorrect  = roundCorrect;
+  wlTotalCorrect += roundCorrect;
+  totalScore     += roundCorrect * 10;
+  updateScoreBadge();
+
+  if (isLastRound) {
+    setTimeout(finishWordLink, 1400);
   } else {
-    // Has mistakes — show 再想想, allow fixing
-    const fb = document.getElementById('wl-feedback');
-    fb.className = 'wl-feedback show wrong';
-    fb.textContent = '🤔 再想想！点击左边的字可以重新连线';
+    showWlFeedback(false, null, `Round ${wlRound + 1}: ${roundCorrect}/${WL_PER_ROUND} 对。下一轮...`);
+    setTimeout(() => { wlRound++; startWlRound(); }, 1600);
   }
 }
 
@@ -1586,45 +1506,27 @@ function buildOooQuestions() {
   });
 
   const qs = [];
-  const usedKeys = [];
+  const shuffledAll = shuffle(eligible);
 
-  const recentCharKeys = getRecentCharKeys();
-  const { recent, rest } = splitByRecency(eligible, recentCharKeys, true);
-  const half = Math.ceil(OOO_QUESTIONS / 2);
-  const recentOrdered = orderByFreshness('odd-one-out', recent, d => d.character);
-  const restOrdered   = orderByFreshness('odd-one-out', rest, d => d.character);
-
-  function tryBuild(list, limit) {
-    for (const item of list) {
-      if (qs.length >= limit) break;
-      if (usedKeys.includes(item.character)) continue;
-      const oddTone = getTone(item.pinyin);
-      // Pick 3 chars with same tone (different from oddTone)
-      const sameTones = [1,2,3,4].filter(t => t !== oddTone);
-      // Randomly pick one of the same-tone groups for the 3
-      const chosenSameTone = sameTones[Math.floor(Math.random() * sameTones.length)];
-      const sameGroup = shuffle(byTone[chosenSameTone]).filter(d => d.character !== item.character);
-      if (sameGroup.length < 3) continue;
-      const three = sameGroup.slice(0, 3);
-      const four = shuffle([item, ...three]);
-      qs.push({
-        chars: four,
-        answer: item,
-        oddTone,
-        sameTone: chosenSameTone
-      });
-      usedKeys.push(item.character);
-    }
+  for (const item of shuffledAll) {
+    if (qs.length >= OOO_QUESTIONS) break;
+    const oddTone = getTone(item.pinyin);
+    // Pick 3 chars with same tone (different from oddTone)
+    const sameTones = [1,2,3,4].filter(t => t !== oddTone);
+    // Randomly pick one of the same-tone groups for the 3
+    const chosenSameTone = sameTones[Math.floor(Math.random() * sameTones.length)];
+    const sameGroup = shuffle(byTone[chosenSameTone]).filter(d => d.character !== item.character);
+    if (sameGroup.length < 3) continue;
+    const three = sameGroup.slice(0, 3);
+    const four = shuffle([item, ...three]);
+    qs.push({
+      chars: four,
+      answer: item,
+      oddTone,
+      sameTone: chosenSameTone
+    });
   }
-
-  tryBuild(recentOrdered, half);            // 先尽量凑够一半来自最近学的字
-  tryBuild(restOrdered, OOO_QUESTIONS);     // 剩余名额（含recent不够的缺口）从其余字里补
-  if (qs.length < OOO_QUESTIONS) {
-    tryBuild(recentOrdered, OOO_QUESTIONS); // rest也不够时，回头把recent里没用上的再兜一遍
-  }
-
-  markFreshnessUsed('odd-one-out', eligible, d => d.character, usedKeys);
-  return shuffle(qs);
+  return qs;
 }
 
 function startOddOneOut() {
@@ -1958,29 +1860,6 @@ function revealWcSteps(q, isCorrect) {
   if (bridges[1]) { bridges[1].textContent = q.bridge[1]; bridges[1].classList.add(isCorrect ? 'correct' : 'wrong-reveal'); }
 }
 
-function wcSpeakWords(wordA, wordB) {
-  if (!window.speechSynthesis) { setTimeout(nextWcQuestion, 800); return; }
-  lpInitVoice();
-  speechSynthesis.cancel();
-
-  const mk = (text) => {
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'zh-CN'; u.rate = 0.6; u.pitch = 1.0;
-    if (lpVoice) u.voice = lpVoice;
-    return u;
-  };
-  const u1 = mk(wordA);
-  const u2 = mk(wordB);
-  const advance = () => setTimeout(nextWcQuestion, 400);
-
-  u1.onend   = () => speechSynthesis.speak(u2);
-  u2.onend   = advance;
-  u1.onerror = advance;
-  u2.onerror = advance;
-
-  speechSynthesis.speak(u1);
-}
-
 function selectWcBridge(btn, chosen, q, optEl) {
   const isCorrect = chosen === q.bridge;
   const fb = document.getElementById('wc-feedback');
@@ -1996,7 +1875,7 @@ function selectWcBridge(btn, chosen, q, optEl) {
     updateScoreBadge();
     fb.className = 'wc-feedback show correct';
     fb.textContent = `✨ ${q.wordA} → ${q.bridge} → ${q.wordB}  接对了！`;
-    setTimeout(() => wcSpeakWords(q.wordA, q.wordB), 600);
+    setTimeout(nextWcQuestion, 1400);
     return;
   }
 
