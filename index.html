@@ -412,7 +412,7 @@
     <div class="game-header">
       <span class="game-title" id="game-title">Game</span>
       <div class="progress-wrap"><div class="progress-bar" id="progress-bar" style="width:0%"></div></div>
-      <span class="q-counter" id="q-counter">1 / 10</span>
+      <span class="q-counter" id="q-counter">1 / 15</span>
     </div>
     <div class="question-card">
       <div class="q-label" id="q-label">Question</div>
@@ -472,7 +472,7 @@
       <span class="result-emoji" id="result-emoji">🎉</span>
       <div class="stars" id="result-stars">⭐⭐⭐</div>
       <h2 id="result-title">Amazing!</h2>
-      <div class="result-score" id="result-score">0 / 150</div>
+      <div class="result-score" id="result-score">15 / 15</div>
       <p id="result-msg">You got every answer right!</p>
       <p id="result-attempts" style="margin-top:10px; font-size:0.9rem; color:#aaa;"></p>
     </div>
@@ -1186,18 +1186,19 @@ function nextQuestion() {
 function showResult() {
   showScreen('result-screen');
   const score  = gameCorrect * 10;
-  document.getElementById('result-score').textContent = `${score} / 150`;
+  const maxScore = QUESTIONS_PER_GAME * 10;
+  document.getElementById('result-score').textContent = `${score} / ${maxScore}`;
   const s = quizState[currentGame];
-  const passed = score === 150;
+  const passed = score === maxScore;
   s.scores.push(score);
   let emoji, stars, title, msg;
   if (passed) {
     if (!s.passed) { s.passed=true; updateHomeButtons(); }
     saveState();
-    emoji='🏆'; stars='⭐⭐⭐'; title='Perfect 150!'; msg='You nailed it! 🎉';
+    emoji='🏆'; stars='⭐⭐⭐'; title=`Perfect ${maxScore}!`; msg='You nailed it! 🎉';
     launchConfetti();
-  } else if (score>=70) {
-    saveState(); emoji='🎉'; stars='⭐⭐'; title='So close!'; msg="Need 150 to pass. You've got this!";
+  } else if (score >= maxScore * 0.7) {
+    saveState(); emoji='🎉'; stars='⭐⭐'; title='So close!'; msg=`Need ${maxScore} to pass. You've got this!`;
   } else {
     saveState(); emoji='💪'; stars='⭐'; title='Keep going!'; msg='Practice makes perfect!';
   }
@@ -1541,9 +1542,9 @@ function finishWordLink() {
 
   let emoji, stars, title, msg;
   if (passed) {
-    emoji = '🏆'; stars = '⭐⭐⭐'; title = 'Perfect!'; msg = 'All 20 words linked! 🎉';
+    emoji = '🏆'; stars = '⭐⭐⭐'; title = 'Perfect!'; msg = `All ${total} words linked! 🎉`;
     launchConfetti();
-  } else if (wlTotalCorrect >= 15) {
+  } else if (wlTotalCorrect >= Math.round(total * 0.7)) {
     emoji = '🎉'; stars = '⭐⭐'; title = 'Great job!'; msg = 'So close — keep practising!';
   } else {
     emoji = '💪'; stars = '⭐'; title = 'Keep going!'; msg = 'Practice makes perfect!';
