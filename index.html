@@ -570,7 +570,7 @@ let charData = [], wordData = [], allCharData = [], allWordData = [];
 let threshold = 9999;
 let totalScore = 0, gameCorrect = 0, currentGame = '';
 let questions = [], currentQ = 0, answered = false, attemptCount = 0;
-const QUESTIONS_PER_GAME = 10;
+const QUESTIONS_PER_GAME = 15;
 
 const QUIZ_ORDER = ['odd-one-out','listen-word','char-pinyin-mix','meaning-match','fill-blank','word-link','word-chain'];
 const QUIZ_NAMES = { 'char-pinyin-mix':'Char & Pinyin','listen-word':'Listen & Pick','meaning-match':'Word Match','fill-blank':'Fill the Blank','word-link':'Word Link','odd-one-out':'Odd One Out','word-chain':'Word Chain' };
@@ -812,6 +812,80 @@ function applyThreshold() {
 function shuffle(arr) { return [...arr].sort(() => Math.random() - 0.5); }
 function pinyinBase(p) { return p.normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/\d/g,'').toLowerCase(); }
 
+// ── FRESHNESS QUEUE（跨 session 持久化，localStorage LRU）───────────────────
+// 记录每个 quiz 类型最近出过的题目 id（char-pinyin-mix/listen-word 用 character，
+// meaning-match/fill-blank 用 word），选题时优先避开，避免连续几轮重复出同一批。
+const FRESHNESS_KEY = 'chineseAppFreshness';
+const FRESHNESS_MAX = 30; // 每个 quiz 类型最多记住最近 30 个 id
+
+function loadFreshness() {
+  try { return JSON.parse(localStorage.getItem(FRESHNESS_KEY) || '{}'); } catch(e) { return {}; }
+}
+function getRecentlyUsedIds(quizType) {
+  const data = loadFreshness();
+  return new Set(data[quizType] || []);
+}
+function markUsedIds(quizType, ids) {
+  if (!ids.length) return;
+  const data = loadFreshness();
+  let queue = data[quizType] || [];
+  queue = queue.concat(ids);
+  if (queue.length > FRESHNESS_MAX) queue = queue.slice(queue.length - FRESHNESS_MAX);
+  data[quizType] = queue;
+  try { localStorage.setItem(FRESHNESS_KEY, JSON.stringify(data)); } catch(e) {}
+}
+
+// ── "最近学习"池：当前 threshold 内，按 serialNo 取最高的 20% ──────────────
+function getRecentChars() {
+  if (charData.length === 0) return [];
+  const n = Math.max(1, Math.ceil(charData.length * 0.2));
+  return [...charData].sort((a, b) => b.serialNo - a.serialNo).slice(0, n);
+}
+function getRecentWords(pool = wordData) {
+  if (pool.length === 0) return [];
+  const serialMap = new Map(charData.map(d => [d.character, d.serialNo]));
+  const withMax = pool.map(d => ({
+    ...d,
+    maxSerial: Math.max(...[...d.word].map(c => serialMap.has(c) ? serialMap.get(c) : 0))
+  }));
+  const n = Math.max(1, Math.ceil(withMax.length * 0.2));
+  return withMax.sort((a, b) => b.maxSerial - a.maxSerial).slice(0, n);
+}
+
+// 生成"8最近学习+7常规"优先顺序的候选队列，不自动写入 freshness（供 odd-one-out /
+// word-chain / word-link 这类"选中未必能用"的场景：先按顺序尝试，最后再手动 markUsedIds）。
+// 队列前 totalCount 项即为标准 8/7 分配；之后追加所有剩余候选作为兜底（失败重试用）。
+function buildHalfRecentOrder(fullPool, recentPool, idField, recentCount, totalCount, quizType) {
+  const usedIds = getRecentlyUsedIds(quizType);
+
+  const recentCandidates = shuffle(recentPool.filter(d => !usedIds.has(d[idField])))
+    .concat(shuffle(recentPool.filter(d => usedIds.has(d[idField]))));
+  const primaryRecent   = recentCandidates.slice(0, recentCount);
+  const leftoverRecent  = recentCandidates.slice(recentCount);
+  const primaryRecentIds = new Set(primaryRecent.map(d => d[idField]));
+
+  const restPoolBase = fullPool.filter(d => !primaryRecentIds.has(d[idField]));
+  const restCandidates = shuffle(restPoolBase.filter(d => !usedIds.has(d[idField])))
+    .concat(shuffle(restPoolBase.filter(d => usedIds.has(d[idField]))));
+  const remainingCount = Math.max(0, totalCount - primaryRecent.length);
+  const primaryRest  = restCandidates.slice(0, remainingCount);
+  const leftoverRest = restCandidates.slice(remainingCount);
+
+  const primary  = shuffle([...primaryRecent, ...primaryRest]);
+  const fallback = shuffle([...leftoverRecent, ...leftoverRest]);
+  return [...primary, ...fallback];
+}
+
+// 从"最近学习"池取 recentCount 题、从完整池取剩余题，两边都优先避开
+// freshness 队列里的 id；不够时才回退到允许重复。选完后立即写回 freshness 队列。
+// 只适用于"选中即可用"的场景（char-pinyin-mix / listen-word / meaning-match / fill-blank）。
+function pickHalfRecentPool(fullPool, recentPool, idField, recentCount, totalCount, quizType) {
+  const order  = buildHalfRecentOrder(fullPool, recentPool, idField, recentCount, totalCount, quizType);
+  const picked = order.slice(0, Math.min(totalCount, order.length));
+  markUsedIds(quizType, picked.map(d => d[idField]));
+  return picked;
+}
+
 // ── START GAME ─────────────────────────────────────────────────────────────
 function startGame(type) {
   if (type === 'word-link') { startWordLink(); return; }
@@ -844,8 +918,15 @@ function pickSameLengthWordDistractors(pool, item, count) {
 
 function generateQuestions(type) {
   if (type === 'char-pinyin-mix') {
-    return shuffle(charData).slice(0, QUESTIONS_PER_GAME).map(item => {
-      const dir = Math.random() > 0.5 ? 'char-to-pinyin' : 'pinyin-to-char';
+    const half  = Math.floor(QUESTIONS_PER_GAME / 2);      // 7
+    const extra = QUESTIONS_PER_GAME - half;                // 8
+    const dirs  = Math.random() > 0.5
+      ? [...Array(extra).fill('char-to-pinyin'), ...Array(half).fill('pinyin-to-char')]
+      : [...Array(half).fill('char-to-pinyin'), ...Array(extra).fill('pinyin-to-char')];
+    const shuffledDirs = shuffle(dirs);
+    const pool = pickHalfRecentPool(charData, getRecentChars(), 'character', 8, QUESTIONS_PER_GAME, 'char-pinyin-mix');
+    return pool.map((item, i) => {
+      const dir = shuffledDirs[i];
       if (dir === 'char-to-pinyin') {
         const wrong = shuffle(charData.filter(d=>d.character!==item.character)).slice(0,3).map(d=>d.pinyin);
         return { item, type, dir, answer: item.pinyin, options: shuffle([item.pinyin,...wrong]) };
@@ -857,13 +938,15 @@ function generateQuestions(type) {
     });
   }
   if (type === 'listen-word') {
-    return shuffle(wordData).slice(0, QUESTIONS_PER_GAME).map(item => {
+    const pool = pickHalfRecentPool(wordData, getRecentWords(), 'word', 8, QUESTIONS_PER_GAME, 'listen-word');
+    return pool.map(item => {
       const wrong = pickSameLengthWordDistractors(wordData, item, 3);
       return { item, type, answer: item.word, options: shuffle([item.word, ...wrong]) };
     });
   }
   if (type === 'meaning-match') {
-    return shuffle(wordData).slice(0, QUESTIONS_PER_GAME).map(item => {
+    const pool = pickHalfRecentPool(wordData, getRecentWords(), 'word', 8, QUESTIONS_PER_GAME, 'meaning-match');
+    return pool.map(item => {
       const dir = Math.random() > 0.5 ? 'word-to-meaning' : 'meaning-to-word';
       if (dir === 'word-to-meaning') {
         const wrong = shuffle(wordData.filter(d=>d.word!==item.word)).slice(0,3).map(d=>d.meaning);
@@ -876,7 +959,8 @@ function generateQuestions(type) {
   }
   if (type === 'fill-blank') {
     const eligible = wordData.filter(d=>[...d.word].length>=2);
-    return shuffle(eligible).slice(0, QUESTIONS_PER_GAME).map(item => {
+    const pool = pickHalfRecentPool(eligible, getRecentWords(eligible), 'word', 8, QUESTIONS_PER_GAME, 'fill-blank');
+    return pool.map(item => {
       const chars = [...item.word];
       const blankIdx = Math.floor(Math.random()*chars.length);
       const answer = chars[blankIdx];
@@ -1144,9 +1228,9 @@ function launchConfetti() {
 
 // ══════════════════════════════════════════════════════════════════════════
 // ── WORD LINK ─────────────────────────────────────────────────────────────
-// 4 rounds × 5 pairs = 20 pairs total. All 20 correct → green icon.
+// 3 rounds × 5 pairs = 15 pairs total. All 15 correct → green icon.
 // ══════════════════════════════════════════════════════════════════════════
-const WL_ROUNDS    = 4;
+const WL_ROUNDS    = 3;
 const WL_PER_ROUND = 5;
 let wlAllPairs     = [];
 let wlRound        = 0;
@@ -1172,7 +1256,10 @@ function buildAllWordLinkPairs() {
 
   // Build disambiguation-safe set
   const allWordSet = new Set(twoCharWords.map(p => p.word));
-  const shuffled   = shuffle([...twoCharWords]);
+  const recentTwoChar = getRecentWords(twoCharWords);
+  const recentWordsSet = new Set(recentTwoChar.map(d => d.word));
+  const recentPairs = twoCharWords.filter(p => recentWordsSet.has(p.word));
+  const shuffled = buildHalfRecentOrder(twoCharWords, recentPairs, 'word', 8, needed, 'word-link');
   const chosen     = [];
 
   for (const candidate of shuffled) {
@@ -1197,7 +1284,9 @@ function buildAllWordLinkPairs() {
     }
   }
 
-  return chosen.slice(0, needed);
+  const finalChosen = chosen.slice(0, needed);
+  markUsedIds('word-link', finalChosen.map(p => p.word));
+  return finalChosen;
 }
 
 
@@ -1473,7 +1562,7 @@ function finishWordLink() {
 // 4 characters shown (no pinyin). 3 share the same tone, 1 is different.
 // Excludes polyphonic characters (pinyin contains '/').
 // ══════════════════════════════════════════════════════════════════════════
-const OOO_QUESTIONS = 10;
+const OOO_QUESTIONS = 15;
 let oooQuestions = [], oooQ = 0, oooCorrect = 0, oooAnswered = false, oooAttempt = 0;
 
 function getTone(pinyin) {
@@ -1506,9 +1595,11 @@ function buildOooQuestions() {
   });
 
   const qs = [];
-  const shuffledAll = shuffle(eligible);
+  const recentEligible = [...eligible].sort((a, b) => b.serialNo - a.serialNo)
+    .slice(0, Math.max(1, Math.ceil(eligible.length * 0.2)));
+  const candidateOrder = buildHalfRecentOrder(eligible, recentEligible, 'character', 8, OOO_QUESTIONS, 'odd-one-out');
 
-  for (const item of shuffledAll) {
+  for (const item of candidateOrder) {
     if (qs.length >= OOO_QUESTIONS) break;
     const oddTone = getTone(item.pinyin);
     // Pick 3 chars with same tone (different from oddTone)
@@ -1526,6 +1617,7 @@ function buildOooQuestions() {
       sameTone: chosenSameTone
     });
   }
+  markUsedIds('odd-one-out', qs.map(q => q.answer.character));
   return qs;
 }
 
@@ -1685,7 +1777,7 @@ function finishOoo() {
 // All three words (A, CD, B) must be in wordData.
 // Distractors: same first char as correct answer but can't connect to B.
 // ══════════════════════════════════════════════════════════════════════════
-const WC_ROUNDS = 10; // questions per game
+const WC_ROUNDS = 15; // questions per game
 let wcQuestions     = []; // array of {wordA, bridge, wordB, distractors}
 let wcQ             = 0;
 let wcTotalCorrect  = 0;
@@ -1704,7 +1796,7 @@ function buildWcQuestions() {
     byFirst[fc].push(d.word);
   });
 
-  const triples = []; // {wordA, bridge, wordB}
+  const triples = []; // {wordA, bridge, wordB, key}
 
   for (const wA of twoChar) {
     const lastA   = wA.word[1];               // 两字词末字 = 下标[1]
@@ -1715,27 +1807,35 @@ function buildWcQuestions() {
       const nextWords  = byFirst[lastBridge] || [];
       for (const wB of nextWords) {
         if (wB === wA.word || wB === bridge) continue;
-        triples.push({ wordA: wA.word, bridge, wordB: wB });
+        triples.push({ wordA: wA.word, bridge, wordB: wB, key: `${wA.word}→${bridge}→${wB}` });
       }
     }
   }
 
   if (triples.length === 0) return [];
 
-  // 打乱，避免重复 wordA
-  const shuffled = shuffle(triples);
-  const chosen   = [];
-  const usedA    = new Set();
-  for (const t of shuffled) {
+  // "最近学习"以 wordA（题目起点词）判断：wordA 属于最近学过的两字词，
+  // 该 triple 就算作"最近学习"候选。
+  const recentTwoChar  = getRecentWords(twoChar);
+  const recentWordsSet = new Set(recentTwoChar.map(d => d.word));
+  const recentTriples  = triples.filter(t => recentWordsSet.has(t.wordA));
+  const candidateOrder = buildHalfRecentOrder(triples, recentTriples, 'key', 8, WC_ROUNDS, 'word-chain');
+
+  // 按候选顺序取，避免重复 wordA
+  const chosen = [];
+  const usedA  = new Set();
+  for (const t of candidateOrder) {
     if (chosen.length >= WC_ROUNDS) break;
     if (usedA.has(t.wordA)) continue;
     usedA.add(t.wordA);
     chosen.push(t);
   }
-  for (const t of shuffled) {
+  for (const t of candidateOrder) {
     if (chosen.length >= WC_ROUNDS) break;
     if (!chosen.includes(t)) chosen.push(t);
   }
+
+  markUsedIds('word-chain', chosen.slice(0, WC_ROUNDS).map(t => t.key));
 
   // 为每道题选3个干扰项：任意两字词，不等于正确答案及题目中出现的词即可
   return chosen.slice(0, WC_ROUNDS).map(({ wordA, bridge, wordB }) => {
@@ -1746,16 +1846,6 @@ function buildWcQuestions() {
   });
 }
 
-function getUsedWcKeys() {
-  try { return JSON.parse(sessionStorage.getItem('wcUsedKeys') || '[]'); } catch(e) { return []; }
-}
-function markWcUsed(q) {
-  const key = `${q.wordA}→${q.bridge}→${q.wordB}`;
-  const used = getUsedWcKeys();
-  used.push(key);
-  try { sessionStorage.setItem('wcUsedKeys', JSON.stringify(used.slice(-40))); } catch(e) {}
-}
-
 function startWordChain() {
   if (wordData.length < 10) { alert('词语太少了！请先加载题目数据。'); return; }
   const all = buildWcQuestions();
@@ -1763,9 +1853,7 @@ function startWordChain() {
     alert('在两字词里找不到可接龙的组合！\n\n请在词表里多加一些两字词，让首字或末字互相呼应。\n例如：上学、学校、校园。');
     return;
   }
-  const usedKeys = new Set(getUsedWcKeys());
-  const fresh = all.filter(q => !usedKeys.has(`${q.wordA}→${q.bridge}→${q.wordB}`));
-  wcQuestions = (fresh.length >= WC_ROUNDS ? fresh : all).slice(0, WC_ROUNDS);
+  wcQuestions = all;
   wcQ = 0; wcTotalCorrect = 0;
   currentGame = 'word-chain';
   showScreen('word-chain-screen');
@@ -1870,7 +1958,6 @@ function selectWcBridge(btn, chosen, q, optEl) {
       if (b.textContent === q.bridge) b.classList.add('correct');
     });
     revealWcSteps(q, true);
-    markWcUsed(q);
     totalScore += 10; wcTotalCorrect++;
     updateScoreBadge();
     fb.className = 'wc-feedback show correct';
@@ -1895,7 +1982,6 @@ function selectWcBridge(btn, chosen, q, optEl) {
     if (b.textContent === q.bridge) b.classList.add('correct');
   });
   revealWcSteps(q, false);
-  markWcUsed(q);
   fb.className = 'wc-feedback show wrong';
   fb.textContent = `❌ 桥梁词是「${q.bridge}」→ ${q.wordA} → ${q.bridge} → ${q.wordB}`;
   setTimeout(nextWcQuestion, 2400);
