@@ -1351,21 +1351,67 @@ function renderWordLink() {
 }
 
 function wlClickLeft(idx) {
-  // Once matched, a left item is locked — no manual undo. Mistakes are only
-  // cleared automatically by evaluateRound() on the first wrong submission.
-  if (wlMatches.hasOwnProperty(idx)) return;
+  const el = document.querySelector(`#wl-left .wl-item[data-idx="${idx}"]`);
+  // Once evaluateRound() has resolved a pair as correct or (final) wrong, it's
+  // permanently locked. Anything still "pending" (i.e. not yet submitted) can
+  // be freely re-clicked and reassigned until the last pair is connected.
+  if (el && (el.classList.contains('matched-ok') || el.classList.contains('matched-wrong'))) return;
+
+  if (wlMatches.hasOwnProperty(idx)) {
+    // Already matched but not yet submitted — undo this pairing so it can be
+    // reassigned, then fall through to select this left item again.
+    const rPairIdx = wlMatches[idx];
+    delete wlMatches[idx];
+    const rEl = document.querySelector(`#wl-right .wl-item[data-pairidx="${rPairIdx}"]`);
+    if (rEl) {
+      rEl.classList.remove('matched-pending');
+      rEl.onclick = () => wlClickRight(rPairIdx, rEl);
+    }
+    if (el) el.classList.remove('matched-pending');
+    drawWlLines();
+    updateWlProgress();
+  }
+
   wlSelected = idx;
-  document.querySelectorAll('#wl-left .wl-item').forEach(el => {
-    el.classList.toggle('selected', parseInt(el.dataset.idx) === idx);
+  document.querySelectorAll('#wl-left .wl-item').forEach(e => {
+    e.classList.toggle('selected', parseInt(e.dataset.idx) === idx);
   });
 }
 
 function wlClickRight(pairIdx, rEl) {
-  if (wlSelected === null) return;
-  // Once a right item is matched, it's locked — ignore further clicks on it.
-  if (Object.values(wlMatches).includes(pairIdx)) return;
+  if (rEl.classList.contains('matched-ok') || rEl.classList.contains('matched-wrong')) return;
+
+  if (wlSelected === null) {
+    // No left item currently selected — clicking an already-matched (but
+    // still pending) right item unmatches it, freeing both sides up again.
+    const existingLeftIdx = Object.keys(wlMatches).find(l => wlMatches[l] === pairIdx);
+    if (existingLeftIdx !== undefined) {
+      delete wlMatches[existingLeftIdx];
+      const leftEl = document.querySelector(`#wl-left .wl-item[data-idx="${existingLeftIdx}"]`);
+      if (leftEl) {
+        leftEl.classList.remove('matched-pending');
+        leftEl.onclick = () => wlClickLeft(parseInt(existingLeftIdx));
+      }
+      rEl.classList.remove('matched-pending');
+      drawWlLines();
+      updateWlProgress();
+    }
+    return;
+  }
 
   const leftIdx = wlSelected;
+
+  // If the chosen right item was already matched to a different (still
+  // pending) left item, unmatch that old pairing first.
+  const existingLeftIdx = Object.keys(wlMatches).find(l => wlMatches[l] === pairIdx && parseInt(l) !== leftIdx);
+  if (existingLeftIdx !== undefined) {
+    delete wlMatches[existingLeftIdx];
+    const oldLeftEl = document.querySelector(`#wl-left .wl-item[data-idx="${existingLeftIdx}"]`);
+    if (oldLeftEl) {
+      oldLeftEl.classList.remove('matched-pending', 'selected');
+      oldLeftEl.onclick = () => wlClickLeft(parseInt(existingLeftIdx));
+    }
+  }
 
   const leftEl = document.querySelector(`#wl-left .wl-item[data-idx="${leftIdx}"]`);
   if (leftEl) {
@@ -1381,7 +1427,7 @@ function wlClickRight(pairIdx, rEl) {
   drawWlLines();
   updateWlProgress();
 
-  // All 5 matched — now evaluate
+  // All pairs connected — now evaluate
   if (Object.keys(wlMatches).length === wlPairs.length) {
     evaluateRound();
   }
