@@ -894,6 +894,7 @@ function pickHalfRecentPool(fullPool, recentPool, idField, recentCount, totalCou
 
 // ── START GAME ─────────────────────────────────────────────────────────────
 function startGame(type) {
+  warmupSpeech();
   if (type === 'word-link') { startWordLink(); return; }
   if (type === 'odd-one-out') { startOddOneOut(); return; }
   if (type === 'word-chain') { startWordChain(); return; }
@@ -978,23 +979,60 @@ function generateQuestions(type) {
 
 // ── LISTEN & PICK — speech ─────────────────────────────────────────────────
 let lpVoice = null;
+let lpVoiceReady = false;
 
 function lpInitVoice() {
-  if (lpVoice) return;
+  if (lpVoice) { lpVoiceReady = true; return; }
   const all = speechSynthesis.getVoices();
+  if (all.length === 0) return; // 还没加载好，稍后再试
   // Prefer Microsoft zh-CN, fallback to Google, then any zh
   lpVoice = all.find(v => v.name.includes('Microsoft') && v.lang === 'zh-CN')
     || all.find(v => v.lang === 'zh-CN')
     || all.find(v => v.lang.startsWith('zh'))
     || null;
+  lpVoiceReady = true; // 就算没找到中文语音，也算"已尝试过"，避免无限等待
 }
 
 speechSynthesis.onvoiceschanged = lpInitVoice;
 
-function lpSpeak() {
-  lpInitVoice();
+// 确保语音列表已加载、lpVoice 已经选定后再继续（避免答题前几秒语音未就绪时
+// 临时用了浏览器随机默认音色，导致"有的字明显不是一个声音"）。
+// 最多等待约 1 秒，超时也会继续（避免卡住不发音）。
+let voicesReadyPromise = null;
+function ensureVoicesReady() {
+  if (voicesReadyPromise) return voicesReadyPromise;
+  voicesReadyPromise = new Promise(resolve => {
+    lpInitVoice();
+    if (lpVoiceReady) { resolve(); return; }
+    let attempts = 0;
+    const poll = setInterval(() => {
+      lpInitVoice();
+      attempts++;
+      if (lpVoiceReady || attempts >= 10) { clearInterval(poll); resolve(); }
+    }, 100);
+  });
+  return voicesReadyPromise;
+}
+
+// 用一段几乎无声的播放"预热"系统 TTS 引擎，减少之后真正播报时的启动延迟。
+// 在每次开始一局quiz时调用一次即可（此时用户刚点了按钮，是有效的用户交互）。
+function warmupSpeech() {
+  ensureVoicesReady().then(() => {
+    try {
+      if (speechSynthesis.speaking || speechSynthesis.pending) return;
+      const u = new SpeechSynthesisUtterance(' ');
+      u.lang = 'zh-CN';
+      u.volume = 0;
+      if (lpVoice) u.voice = lpVoice;
+      speechSynthesis.speak(u);
+    } catch (e) {}
+  });
+}
+
+async function lpSpeak() {
   const q = questions[currentQ];
   if (!q || q.type !== 'listen-word') return;
+  await ensureVoicesReady();
   if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
 
   const btn  = document.getElementById('lp-play-btn');
@@ -1021,20 +1059,17 @@ function lpSpeak() {
 }
 
 // ── 通用 TTS 播报（正确答案跳转前念读）──────────────────────────────────────
-function makeZhUtterance(text, rate = 0.6) {
-  lpInitVoice();
+// items: [{kind:'zh'|'en', text}, ...] —— 传描述而不是预先 new 好的 utterance，
+// 这样才能保证在真正 speak() 之前，语音列表和 lpVoice 已经就绪。
+function buildUtterance(kind, text) {
+  if (kind === 'en') {
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'en-US'; u.rate = 0.9; u.pitch = 1.0;
+    return u;
+  }
   const u = new SpeechSynthesisUtterance(text);
-  u.lang = 'zh-CN';
-  u.rate = rate;
-  u.pitch = 1.0;
+  u.lang = 'zh-CN'; u.rate = 0.6; u.pitch = 1.0;
   if (lpVoice) u.voice = lpVoice;
-  return u;
-}
-function makeEnUtterance(text, rate = 0.9) {
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = 'en-US';
-  u.rate = rate;
-  u.pitch = 1.0;
   return u;
 }
 // 依次播放一组 utterance，全部播完（或出错）后调用 onDone
@@ -1049,16 +1084,19 @@ function speakSequence(utterances, onDone) {
   }
   playNext();
 }
-// 播完指定 utterance 后再跳转；带兜底计时器，避免语音合成异常导致卡死不跳转
-function speakThenAdvance(utterances, advanceFn, fallbackMs = 5000) {
+// 等语音就绪后，播完指定内容再跳转；带兜底计时器，避免语音合成异常导致卡死不跳转
+function speakThenAdvance(items, advanceFn, fallbackMs = 5000) {
   let done = false;
   const proceed = () => { if (done) return; done = true; advanceFn(); };
-  // 只在真的有语音在播放/排队时才 cancel，避免不必要的引擎重置延迟
-  if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
-  try {
-    speakSequence(utterances, proceed);
-  } catch (e) { proceed(); }
-  setTimeout(proceed, fallbackMs);
+  const fallbackTimer = setTimeout(proceed, fallbackMs);
+  ensureVoicesReady().then(() => {
+    if (done) return;
+    if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
+    try {
+      const utterances = items.map(it => buildUtterance(it.kind, it.text));
+      speakSequence(utterances, () => { clearTimeout(fallbackTimer); proceed(); });
+    } catch (e) { clearTimeout(fallbackTimer); proceed(); }
+  });
 }
 
 function renderQuestion() {
@@ -1173,21 +1211,21 @@ function selectOption(btn, chosen, answer) {
     } else if (q && q.type === 'char-pinyin-mix') {
       showFeedback(true, answer);
       speakThenAdvance(
-        [makeZhUtterance(q.item.character)],
+        [{kind:'zh', text:q.item.character}],
         nextQuestion,
         4000
       );
     } else if (q && q.type === 'meaning-match') {
       showFeedback(true, answer);
       speakThenAdvance(
-        [makeZhUtterance(q.item.word), makeEnUtterance(q.item.meaning)],
+        [{kind:'zh', text:q.item.word}, {kind:'en', text:q.item.meaning}],
         nextQuestion,
         6000
       );
     } else if (q && q.type === 'fill-blank') {
       showFeedback(true, answer);
       speakThenAdvance(
-        [makeZhUtterance(q.item.word)],
+        [{kind:'zh', text:q.item.word}],
         nextQuestion,
         4000
       );
@@ -1826,7 +1864,7 @@ function selectOoo(btn, chosen, q) {
     totalScore += 10; oooCorrect++; updateScoreBadge();
     showFeedback(true, null, `Great job, ${q.answer.character} = ${q.answer.pinyin}`, true);
     speakThenAdvance(
-      [makeZhUtterance(q.answer.character)],
+      [{kind:'zh', text:q.answer.character}],
       nextOoo,
       4000
     );
@@ -2078,7 +2116,7 @@ function selectWcBridge(btn, chosen, q, optEl) {
     fb.className = 'wc-feedback show correct';
     fb.textContent = `✨ ${q.wordA} → ${q.bridge} → ${q.wordB}  接对了！`;
     speakThenAdvance(
-      [makeZhUtterance(q.wordA), makeZhUtterance(q.wordB)],
+      [{kind:'zh', text:q.wordA}, {kind:'zh', text:q.wordB}],
       nextWcQuestion,
       6000
     );
