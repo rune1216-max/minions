@@ -1023,6 +1023,46 @@ function lpSpeak() {
   speechSynthesis.speak(u1);
 }
 
+// ── 通用 TTS 播报（正确答案跳转前念读）──────────────────────────────────────
+function makeZhUtterance(text, rate = 0.6) {
+  lpInitVoice();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'zh-CN';
+  u.rate = rate;
+  u.pitch = 1.0;
+  if (lpVoice) u.voice = lpVoice;
+  return u;
+}
+function makeEnUtterance(text, rate = 0.9) {
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = 'en-US';
+  u.rate = rate;
+  u.pitch = 1.0;
+  return u;
+}
+// 依次播放一组 utterance，全部播完（或出错）后调用 onDone
+function speakSequence(utterances, onDone) {
+  let i = 0;
+  function playNext() {
+    if (i >= utterances.length) { onDone && onDone(); return; }
+    const u = utterances[i++];
+    u.onend = playNext;
+    u.onerror = playNext;
+    speechSynthesis.speak(u);
+  }
+  playNext();
+}
+// 播完指定 utterance 后再跳转；带兜底计时器，避免语音合成异常导致卡死不跳转
+function speakThenAdvance(utterances, advanceFn, fallbackMs = 6000) {
+  let done = false;
+  const proceed = () => { if (done) return; done = true; advanceFn(); };
+  try {
+    speechSynthesis.cancel();
+    speakSequence(utterances, proceed);
+  } catch (e) { proceed(); }
+  setTimeout(proceed, fallbackMs);
+}
+
 function renderQuestion() {
   if (currentGame === 'odd-one-out') { renderOooQuestion(); return; }
   const q = questions[currentQ]; answered = false; attemptCount = 0;
@@ -1131,6 +1171,24 @@ function selectOption(btn, chosen, answer) {
     if (q && q.type === 'listen-word') {
       showFeedback(true, null, `${q.item.word} = ${q.item.pinyin}`);
       setTimeout(nextQuestion, 1200);
+    } else if (q && q.type === 'char-pinyin-mix') {
+      showFeedback(true, answer);
+      speakThenAdvance(
+        [makeZhUtterance(q.item.character), makeZhUtterance(q.item.character)],
+        nextQuestion
+      );
+    } else if (q && q.type === 'meaning-match') {
+      showFeedback(true, answer);
+      speakThenAdvance(
+        [makeZhUtterance(q.item.word), makeEnUtterance(q.item.meaning)],
+        nextQuestion
+      );
+    } else if (q && q.type === 'fill-blank') {
+      showFeedback(true, answer);
+      speakThenAdvance(
+        [makeZhUtterance(q.item.word), makeZhUtterance(q.item.word)],
+        nextQuestion
+      );
     } else {
       showFeedback(true, answer);
       setTimeout(nextQuestion, 800);
@@ -1160,16 +1218,20 @@ function selectOption(btn, chosen, answer) {
   document.getElementById('next-btn').style.display='block';
 }
 
-function showFeedback(correct, correctAnswer, customMsg) {
+function showFeedback(correct, correctAnswer, customMsg, exact) {
   const fb = document.getElementById('feedback');
   if (correct === null) {
     fb.className = 'feedback retry';
     fb.textContent = customMsg || '❌ 再试一次！';
   } else if (correct) {
     fb.className='feedback correct';
-    const praise = ['🌟 Amazing!','🎉 Correct!','✨ You got it!','👏 Great job!','💫 Brilliant!'];
-    const base   = praise[Math.floor(Math.random()*praise.length)];
-    fb.textContent = customMsg ? `${base}  ${customMsg}` : base;
+    if (exact) {
+      fb.textContent = customMsg;
+    } else {
+      const praise = ['🌟 Amazing!','🎉 Correct!','✨ You got it!','👏 Great job!','💫 Brilliant!'];
+      const base   = praise[Math.floor(Math.random()*praise.length)];
+      fb.textContent = customMsg ? `${base}  ${customMsg}` : base;
+    }
   } else {
     fb.className='feedback wrong';
     fb.textContent = customMsg ? `❌ ${customMsg}` : `❌ The answer was: ${correctAnswer}`;
@@ -1707,10 +1769,10 @@ function renderOooQuestion() {
   charEl.style.display = pinEl.style.display = 'none';
   wpDisp.style.display = wfDisp.style.display = 'none';
   ynCont.style.display = 'none';
-  labelEl.textContent = 'Which one has a DIFFERENT tone?';
+  labelEl.textContent = 'Which one has a different tone?';
   labelEl.style.display = '';
   hintEl.style.display = '';
-  hintEl.textContent = '三个字同声调，找出不同的那个！No pinyin shown — listen in your head!';
+  hintEl.innerHTML = '三个字同声调，找出不同的那个！<br>No pinyin shown — listen in your head!';
 
   optCont.style.display = '';
   optCont.className = 'ooo-grid';
@@ -1760,8 +1822,11 @@ function selectOoo(btn, chosen, q) {
     revealOooAnswers(q);
     btn.classList.add('correct');
     totalScore += 10; oooCorrect++; updateScoreBadge();
-    showFeedback(true, null, `${q.answer.character} = ${q.answer.pinyin} — ${TONE_NAMES[q.oddTone]}!`);
-    setTimeout(() => nextOoo(), 1400);
+    showFeedback(true, null, `Great job, ${q.answer.character} = ${q.answer.pinyin}`, true);
+    speakThenAdvance(
+      [makeZhUtterance(q.answer.character), makeZhUtterance(q.answer.character)],
+      nextOoo
+    );
     return;
   }
 
@@ -2009,7 +2074,10 @@ function selectWcBridge(btn, chosen, q, optEl) {
     updateScoreBadge();
     fb.className = 'wc-feedback show correct';
     fb.textContent = `✨ ${q.wordA} → ${q.bridge} → ${q.wordB}  接对了！`;
-    setTimeout(nextWcQuestion, 1400);
+    speakThenAdvance(
+      [makeZhUtterance(q.wordA), makeZhUtterance(q.wordB)],
+      nextWcQuestion
+    );
     return;
   }
 
