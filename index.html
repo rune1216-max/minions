@@ -772,6 +772,8 @@ document.addEventListener('DOMContentLoaded', () => {
   if (charData.length === 0 && wordData.length === 0) {
     loadFromGoogleSheets();
   }
+  // 提前"预热"语音引擎，让 getVoices() 尽早就绪，减少答题后第一次发音的等待
+  lpInitVoice();
 });
 
 function loadThreshold() {
@@ -993,7 +995,7 @@ function lpSpeak() {
   lpInitVoice();
   const q = questions[currentQ];
   if (!q || q.type !== 'listen-word') return;
-  speechSynthesis.cancel();
+  if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
 
   const btn  = document.getElementById('lp-play-btn');
   const hint = document.getElementById('lp-hint');
@@ -1015,7 +1017,7 @@ function lpSpeak() {
   u.onend   = done;
   u.onerror = done;
 
-  setTimeout(() => speechSynthesis.speak(u), 30);
+  speechSynthesis.speak(u);
 }
 
 // ── 通用 TTS 播报（正确答案跳转前念读）──────────────────────────────────────
@@ -1051,14 +1053,11 @@ function speakSequence(utterances, onDone) {
 function speakThenAdvance(utterances, advanceFn, fallbackMs = 5000) {
   let done = false;
   const proceed = () => { if (done) return; done = true; advanceFn(); };
-  speechSynthesis.cancel();
-  // Chrome/WebKit 在 cancel() 后立即 speak() 有时会静默失败，加一个极短延时更保险，
-  // 同时保证点击后几乎立刻开始发音（不再有明显停顿）
-  setTimeout(() => {
-    try {
-      speakSequence(utterances, proceed);
-    } catch (e) { proceed(); }
-  }, 30);
+  // 只在真的有语音在播放/排队时才 cancel，避免不必要的引擎重置延迟
+  if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
+  try {
+    speakSequence(utterances, proceed);
+  } catch (e) { proceed(); }
   setTimeout(proceed, fallbackMs);
 }
 
