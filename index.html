@@ -1047,36 +1047,44 @@ async function lpSpeak() {
   done();
 }
 
-// ── 本地 mp3 发音（XiaoxiaoNeural，逐字拼接播放）─────────────────────────────
-// 每个汉字对应 audio/<字>.mp3。缺失或加载失败时，该字自动降级用浏览器 TTS 念出，
-// 不影响后续流程；一律返回 Promise，在这个字/词"真正播完"时 resolve。
+// ── 本地 mp3 发音（XiaoxiaoNeural）─────────────────────────────────────────
+// 单字：audio/<字>.mp3；整词（2字以上）优先找 audio/<词>.mp3（整词录音，更自然）；
+// 找不到整词录音时，退回逐字拼接播放。任何一步缺失都用浏览器 TTS 兜底，不影响流程。
+function playAudioFile(url) {
+  return new Promise((resolve, reject) => {
+    try {
+      const a = new Audio(url);
+      a.onended = resolve;
+      a.onerror = reject;
+      a.play().catch(reject);
+    } catch (e) { reject(e); }
+  });
+}
 function playCharAudio(ch) {
   return new Promise(resolve => {
-    let settled = false;
-    const finish = () => { if (settled) return; settled = true; resolve(); };
     const ttsFallback = () => {
       ensureVoicesReady().then(() => {
-        if (settled) return;
         try {
           const u = new SpeechSynthesisUtterance(ch);
           u.lang = 'zh-CN'; u.rate = 0.6; u.pitch = 1.0;
           if (lpVoice) u.voice = lpVoice;
-          u.onend = finish;
-          u.onerror = finish;
+          u.onend = resolve;
+          u.onerror = resolve;
           speechSynthesis.speak(u);
-        } catch (e) { finish(); }
+        } catch (e) { resolve(); }
       });
     };
-    try {
-      const a = new Audio('audio/' + encodeURIComponent(ch) + '.mp3');
-      a.onended = finish;
-      a.onerror = ttsFallback;
-      a.play().catch(ttsFallback); // Safari 等有时 play() 直接 reject 而不触发 onerror
-    } catch (e) { ttsFallback(); }
+    playAudioFile('audio/' + encodeURIComponent(ch) + '.mp3').then(resolve, ttsFallback);
   });
 }
-// 没有整词录音，靠单字 mp3 按顺序拼接播放来模拟整词发音
+// 整词：先试 audio/<词>.mp3（整词录音）；没有的话逐字拼接（每个字内部各自有 TTS 兜底）
 async function playWordAudio(word) {
+  if ([...word].length > 1) {
+    try {
+      await playAudioFile('audio/' + encodeURIComponent(word) + '.mp3');
+      return;
+    } catch (e) { /* 没有整词录音，往下走逐字拼接 */ }
+  }
   for (const ch of [...word]) {
     await playCharAudio(ch);
   }
