@@ -995,8 +995,7 @@ function lpInitVoice() {
 
 speechSynthesis.onvoiceschanged = lpInitVoice;
 
-// 确保语音列表已加载、lpVoice 已经选定后再继续（避免答题前几秒语音未就绪时
-// 临时用了浏览器随机默认音色，导致"有的字明显不是一个声音"）。
+// 确保语音列表已加载、lpVoice 已经选定后再继续（mp3 缺失时的 TTS 兜底会用到）。
 // 最多等待约 1 秒，超时也会继续（避免卡住不发音）。
 let voicesReadyPromise = null;
 function ensureVoicesReady() {
@@ -1014,8 +1013,7 @@ function ensureVoicesReady() {
   return voicesReadyPromise;
 }
 
-// 用一段几乎无声的播放"预热"系统 TTS 引擎，减少之后真正播报时的启动延迟。
-// 在每次开始一局quiz时调用一次即可（此时用户刚点了按钮，是有效的用户交互）。
+// 用一段几乎无声的播放"预热"系统 TTS 引擎（仅作为 mp3 缺失时兜底路径的预热）。
 function warmupSpeech() {
   ensureVoicesReady().then(() => {
     try {
@@ -1032,7 +1030,6 @@ function warmupSpeech() {
 async function lpSpeak() {
   const q = questions[currentQ];
   if (!q || q.type !== 'listen-word') return;
-  await ensureVoicesReady();
   if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
 
   const btn  = document.getElementById('lp-play-btn');
@@ -1045,58 +1042,79 @@ async function lpSpeak() {
     if (hint) hint.textContent = 'Tap to hear again';
   };
 
-  // Play the word once; tap the speaker button again to replay.
-  const u = new SpeechSynthesisUtterance(q.item.word);
-  u.lang  = 'zh-CN';
-  u.rate  = 0.5;
-  u.pitch = 1.0;
-  if (lpVoice) u.voice = lpVoice;
-
-  u.onend   = done;
-  u.onerror = done;
-
-  speechSynthesis.speak(u);
+  // 逐字播放本地 mp3（缺失时该字自动降级用浏览器 TTS），播完整个词后恢复按钮状态。
+  await playWordAudio(q.item.word);
+  done();
 }
 
-// ── 通用 TTS 播报（正确答案跳转前念读）──────────────────────────────────────
-// items: [{kind:'zh'|'en', text}, ...] —— 传描述而不是预先 new 好的 utterance，
-// 这样才能保证在真正 speak() 之前，语音列表和 lpVoice 已经就绪。
-function buildUtterance(kind, text) {
-  if (kind === 'en') {
-    const u = new SpeechSynthesisUtterance(text);
-    u.lang = 'en-US'; u.rate = 0.9; u.pitch = 1.0;
-    return u;
+// ── 本地 mp3 发音（XiaoxiaoNeural，逐字拼接播放）─────────────────────────────
+// 每个汉字对应 audio/<字>.mp3。缺失或加载失败时，该字自动降级用浏览器 TTS 念出，
+// 不影响后续流程；一律返回 Promise，在这个字/词"真正播完"时 resolve。
+function playCharAudio(ch) {
+  return new Promise(resolve => {
+    let settled = false;
+    const finish = () => { if (settled) return; settled = true; resolve(); };
+    const ttsFallback = () => {
+      ensureVoicesReady().then(() => {
+        if (settled) return;
+        try {
+          const u = new SpeechSynthesisUtterance(ch);
+          u.lang = 'zh-CN'; u.rate = 0.6; u.pitch = 1.0;
+          if (lpVoice) u.voice = lpVoice;
+          u.onend = finish;
+          u.onerror = finish;
+          speechSynthesis.speak(u);
+        } catch (e) { finish(); }
+      });
+    };
+    try {
+      const a = new Audio('audio/' + encodeURIComponent(ch) + '.mp3');
+      a.onended = finish;
+      a.onerror = ttsFallback;
+      a.play().catch(ttsFallback); // Safari 等有时 play() 直接 reject 而不触发 onerror
+    } catch (e) { ttsFallback(); }
+  });
+}
+// 没有整词录音，靠单字 mp3 按顺序拼接播放来模拟整词发音
+async function playWordAudio(word) {
+  for (const ch of [...word]) {
+    await playCharAudio(ch);
   }
-  const u = new SpeechSynthesisUtterance(text);
-  u.lang = 'zh-CN'; u.rate = 0.6; u.pitch = 1.0;
-  if (lpVoice) u.voice = lpVoice;
-  return u;
 }
-// 依次播放一组 utterance，全部播完（或出错）后调用 onDone
-function speakSequence(utterances, onDone) {
-  let i = 0;
-  function playNext() {
-    if (i >= utterances.length) { onDone && onDone(); return; }
-    const u = utterances[i++];
-    u.onend = playNext;
-    u.onerror = playNext;
-    speechSynthesis.speak(u);
-  }
-  playNext();
+function playEnglish(text) {
+  return new Promise(resolve => {
+    ensureVoicesReady().then(() => {
+      try {
+        const u = new SpeechSynthesisUtterance(text);
+        u.lang = 'en-US'; u.rate = 0.9; u.pitch = 1.0;
+        u.onend = resolve;
+        u.onerror = resolve;
+        speechSynthesis.speak(u);
+      } catch (e) { resolve(); }
+    });
+  });
 }
-// 等语音就绪后，播完指定内容再跳转；带兜底计时器，避免语音合成异常导致卡死不跳转
-function speakThenAdvance(items, advanceFn, fallbackMs = 5000) {
+
+// 等 mp3/兜底 TTS 播完指定内容后再跳转；带兜底计时器，避免异常导致卡死不跳转
+// items: [{kind:'zh'|'en', text}]
+function speakThenAdvance(items, advanceFn, fallbackMs = 6000) {
   let done = false;
   const proceed = () => { if (done) return; done = true; advanceFn(); };
   const fallbackTimer = setTimeout(proceed, fallbackMs);
-  ensureVoicesReady().then(() => {
-    if (done) return;
-    if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
+
+  (async () => {
     try {
-      const utterances = items.map(it => buildUtterance(it.kind, it.text));
-      speakSequence(utterances, () => { clearTimeout(fallbackTimer); proceed(); });
-    } catch (e) { clearTimeout(fallbackTimer); proceed(); }
-  });
+      if (speechSynthesis.speaking || speechSynthesis.pending) speechSynthesis.cancel();
+      document.querySelectorAll('audio').forEach(a => { try { a.pause(); } catch (e) {} });
+      for (const it of items) {
+        if (done) return;
+        if (it.kind === 'en') await playEnglish(it.text);
+        else await playWordAudio(it.text);
+      }
+    } catch (e) {}
+    clearTimeout(fallbackTimer);
+    proceed();
+  })();
 }
 
 function renderQuestion() {
@@ -1220,14 +1238,14 @@ function selectOption(btn, chosen, answer) {
       speakThenAdvance(
         [{kind:'zh', text:q.item.word}, {kind:'en', text:q.item.meaning}],
         nextQuestion,
-        6000
+        7000
       );
     } else if (q && q.type === 'fill-blank') {
       showFeedback(true, answer);
       speakThenAdvance(
         [{kind:'zh', text:q.item.word}],
         nextQuestion,
-        4000
+        5000
       );
     } else {
       showFeedback(true, answer);
@@ -2118,7 +2136,7 @@ function selectWcBridge(btn, chosen, q, optEl) {
     speakThenAdvance(
       [{kind:'zh', text:q.wordA}, {kind:'zh', text:q.wordB}],
       nextWcQuestion,
-      6000
+      8000
     );
     return;
   }
@@ -2177,8 +2195,7 @@ function finishWordChain() {
   document.getElementById('play-again-btn').style.display = 'block';
 }
 
-<script>
-// ===== 发音 =====
+// ===== iOS/移动端音频解锁（首次触摸/点击时预播放一段静音音频，解除自动播放限制）=====
 let _audioUnlockDone = false;
 function unlockAudio() {
   if (_audioUnlockDone) return;
@@ -2188,29 +2205,6 @@ function unlockAudio() {
 }
 document.addEventListener('touchstart', unlockAudio, {once:true});
 document.addEventListener('click', unlockAudio, {once:true});
-
-function playChar(ch) {
-  document.querySelectorAll('audio').forEach(a => { try{a.pause();a.currentTime=0;}catch(e){} });
-  speechSynthesis.cancel();
-  const a = new Audio('audio/' + encodeURIComponent(ch) + '.mp3');
-  a.playbackRate = 0.9;
-  a.play().catch(() => {
-    const u = new SpeechSynthesisUtterance(ch);
-    u.lang = 'zh-CN';
-    u.rate = 0.8;
-    speechSynthesis.speak(u);
-  });
-}
-
-// 点任何选项按钮都播那个字的音
-document.addEventListener('click', function(e) {
-  const btn = e.target.closest('.option-btn');
-  if (!btn) return;
-  const ch = btn.querySelector('.opt-chinese')?.textContent?.trim();
-  if (ch) playChar(ch);
-});
-</script>
-
 </script>
 </body>
 </html>
