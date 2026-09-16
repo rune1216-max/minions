@@ -2177,7 +2177,39 @@ function finishWordChain() {
   document.getElementById('play-again-btn').style.display = 'block';
 }
 
+<script>
+// ===== 发音 =====
+let _audioUnlockDone = false;
+function unlockAudio() {
+  if (_audioUnlockDone) return;
+  _audioUnlockDone = true;
+  const silent = new Audio('data:audio/wav;base64,UklGRigAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQQAAAAAAA==');
+  silent.play().catch(()=>{});
+}
+document.addEventListener('touchstart', unlockAudio, {once:true});
+document.addEventListener('click', unlockAudio, {once:true});
 
+function playChar(ch) {
+  document.querySelectorAll('audio').forEach(a => { try{a.pause();a.currentTime=0;}catch(e){} });
+  speechSynthesis.cancel();
+  const a = new Audio('audio/' + encodeURIComponent(ch) + '.mp3');
+  a.playbackRate = 0.9;
+  a.play().catch(() => {
+    const u = new SpeechSynthesisUtterance(ch);
+    u.lang = 'zh-CN';
+    u.rate = 0.8;
+    speechSynthesis.speak(u);
+  });
+}
+
+// 点任何选项按钮都播那个字的音
+document.addEventListener('click', function(e) {
+  const btn = e.target.closest('.option-btn');
+  if (!btn) return;
+  const ch = btn.querySelector('.opt-chinese')?.textContent?.trim();
+  if (ch) playChar(ch);
+});
+</script>
 
 </script>
 </body>
