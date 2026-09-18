@@ -1089,22 +1089,9 @@ async function playWordAudio(word) {
     await playCharAudio(ch);
   }
 }
-function playEnglish(text) {
-  return new Promise(resolve => {
-    ensureVoicesReady().then(() => {
-      try {
-        const u = new SpeechSynthesisUtterance(text);
-        u.lang = 'en-US'; u.rate = 0.9; u.pitch = 1.0;
-        u.onend = resolve;
-        u.onerror = resolve;
-        speechSynthesis.speak(u);
-      } catch (e) { resolve(); }
-    });
-  });
-}
 
 // 等 mp3/兜底 TTS 播完指定内容后再跳转；带兜底计时器，避免异常导致卡死不跳转
-// items: [{kind:'zh'|'en', text}]
+// items: [{kind:'zh', text}] —— 已取消英文发音（TTS 启动慢），目前只播中文
 function speakThenAdvance(items, advanceFn, fallbackMs = 6000) {
   let done = false;
   const proceed = () => { if (done) return; done = true; advanceFn(); };
@@ -1116,8 +1103,7 @@ function speakThenAdvance(items, advanceFn, fallbackMs = 6000) {
       document.querySelectorAll('audio').forEach(a => { try { a.pause(); } catch (e) {} });
       for (const it of items) {
         if (done) return;
-        if (it.kind === 'en') await playEnglish(it.text);
-        else await playWordAudio(it.text);
+        await playWordAudio(it.text);
       }
     } catch (e) {}
     clearTimeout(fallbackTimer);
@@ -1244,9 +1230,9 @@ function selectOption(btn, chosen, answer) {
     } else if (q && q.type === 'meaning-match') {
       showFeedback(true, answer);
       speakThenAdvance(
-        [{kind:'zh', text:q.item.word}, {kind:'en', text:q.item.meaning}],
+        [{kind:'zh', text:q.item.word}],
         nextQuestion,
-        7000
+        4000
       );
     } else if (q && q.type === 'fill-blank') {
       showFeedback(true, answer);
