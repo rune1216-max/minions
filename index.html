@@ -813,6 +813,7 @@ function applyThreshold() {
       ind.style.color = '#aaa';
     }
   }
+  schedulePrecache();
 }
 
 function shuffle(arr) { return [...arr].sort(() => Math.random() - 0.5); }
@@ -903,6 +904,7 @@ function startGame(type) {
   if (type==='listen-word' && wordData.length<4) { alert('Need at least 4 words!'); return; }
   currentGame = type; currentQ = 0; gameCorrect = 0; answered = false;
   questions = generateQuestions(type);
+  questions.forEach(preloadQuestionAudio);
   showScreen('game-screen'); updateScoreBadge(); renderQuestion();
 }
 
@@ -1050,13 +1052,63 @@ async function lpSpeak() {
 // ── 本地 mp3 发音（XiaoxiaoNeural）─────────────────────────────────────────
 // 单字：audio/<字>.mp3；整词（2字以上）优先找 audio/<词>.mp3（整词录音，更自然）；
 // 找不到整词录音时，退回逐字拼接播放。任何一步缺失都用浏览器 TTS 兜底，不影响流程。
+// ── 音频预加载池 ───────────────────────────────────────────────────────────
+// 出题时提前把整词/逐字的 mp3 创建为 Audio 并保留引用，播放时直接复用，
+// 避免"上一个字播完才开始下载下一个字"造成的停顿；404 的文件记入 audioMissing，
+// 之后直接跳过，不再等待一次失败的网络往返。
+const AUDIO_POOL_MAX = 120;
+const audioPool = new Map();      // url -> HTMLAudioElement
+const audioMissing = new Set();   // 已确认不存在/加载失败的 url
+
+function audioUrl(text) { return 'audio/' + encodeURIComponent(text) + '.mp3'; }
+
+function getPooledAudio(url) {
+  let a = audioPool.get(url);
+  if (a) { audioPool.delete(url); audioPool.set(url, a); return a; } // 刷新最近使用
+  a = new Audio();
+  a.preload = 'auto';
+  a._failed = false;
+  a.addEventListener('error', () => { a._failed = true; audioMissing.add(url); });
+  a.src = url;
+  audioPool.set(url, a);
+  if (audioPool.size > AUDIO_POOL_MAX) {
+    for (const [k, v] of audioPool) {
+      if (v.paused) { audioPool.delete(k); break; }
+    }
+  }
+  return a;
+}
+
+function preloadWordAudio(word) {
+  if (!word) return;
+  const chars = [...word];
+  if (chars.length > 1) getPooledAudio(audioUrl(word));
+  chars.forEach(ch => getPooledAudio(audioUrl(ch)));
+}
+
+// 单题：预加载"答对后会播放"或"听音题要播放"的内容
+function preloadQuestionAudio(q) {
+  if (!q) return;
+  try {
+    if (q.type === 'listen-word' || q.type === 'meaning-match' || q.type === 'fill-blank') preloadWordAudio(q.item && q.item.word);
+    else if (q.type === 'char-pinyin-mix') preloadWordAudio(q.item && q.item.character);
+  } catch (e) {}
+}
+
 function playAudioFile(url) {
   return new Promise((resolve, reject) => {
+    if (audioMissing.has(url)) { reject(new Error('missing')); return; }
     try {
-      const a = new Audio(url);
-      a.onended = resolve;
-      a.onerror = reject;
-      a.play().catch(reject);
+      let a = getPooledAudio(url);
+      if (a._failed) { reject(new Error('missing')); return; }
+      // 同一个文件正在播放（例如连点）时，用独立实例，避免覆盖回调
+      if (!a.paused && !a.ended) { a = new Audio(url); a._failed = false; }
+      const cleanup = () => { a.onended = null; a.onerror = null; };
+      a.onended = () => { cleanup(); resolve(); };
+      a.onerror = () => { cleanup(); reject(new Error('load error')); };
+      try { a.currentTime = 0; } catch (e) {}
+      const p = a.play();
+      if (p && p.catch) p.catch(err => { cleanup(); reject(err); });
     } catch (e) { reject(e); }
   });
 }
@@ -1074,14 +1126,14 @@ function playCharAudio(ch) {
         } catch (e) { resolve(); }
       });
     };
-    playAudioFile('audio/' + encodeURIComponent(ch) + '.mp3').then(resolve, ttsFallback);
+    playAudioFile(audioUrl(ch)).then(resolve, ttsFallback);
   });
 }
 // 整词：先试 audio/<词>.mp3（整词录音）；没有的话逐字拼接（每个字内部各自有 TTS 兜底）
 async function playWordAudio(word) {
   if ([...word].length > 1) {
     try {
-      await playAudioFile('audio/' + encodeURIComponent(word) + '.mp3');
+      await playAudioFile(audioUrl(word));
       return;
     } catch (e) { /* 没有整词录音，往下走逐字拼接 */ }
   }
@@ -1797,6 +1849,11 @@ function startOddOneOut() {
 function renderOooQuestion() {
   const q = oooQuestions[oooQ];
   oooAnswered = false; oooAttempt = 0;
+  // 预加载当前及后两题的答案发音
+  for (let k = 0; k < 3; k++) {
+    const pq = oooQuestions[oooQ + k];
+    if (pq && pq.answer) preloadWordAudio(pq.answer.character);
+  }
 
   // Clean up listen-word speaker button if present
   const oldSpeaker = document.getElementById('lp-speaker');
@@ -2029,6 +2086,11 @@ function startWordChain() {
 function renderWcQuestion() {
   const q = wcQuestions[wcQ];
   wcAttempt = 0;
+  // 预加载当前及后两题的两个词
+  for (let k = 0; k < 3; k++) {
+    const pq = wcQuestions[wcQ + k];
+    if (pq) { preloadWordAudio(pq.wordA); preloadWordAudio(pq.wordB); }
+  }
   document.getElementById('wc-progress-bar').style.width = (wcQ / wcQuestions.length * 100) + '%';
   document.getElementById('wc-counter').textContent = `${wcQ + 1} / ${wcQuestions.length}`;
 
@@ -2199,6 +2261,59 @@ function unlockAudio() {
 }
 document.addEventListener('touchstart', unlockAudio, {once:true});
 document.addEventListener('click', unlockAudio, {once:true});
+
+// ===== 音频离线缓存（service worker 仅管 /audio/，不碰 index.html，不会造成版本过期）=====
+// AUDIO_PRECACHE = true：数据加载后，后台把当前阈值内所有字/词的 mp3 存进手机缓存。
+// 想只做"播过即缓存"、不批量下载，把它改成 false。
+// 缓存名必须与 sw.js 中的 AUDIO_CACHE 一致；重新生成过 mp3 后，两处一起改版本号（v1 → v2）。
+const AUDIO_PRECACHE = true;
+const AUDIO_CACHE_NAME = 'chinese-audio-v1';
+let _precacheRunning = false, _precacheAgain = false, _precacheTimer = null;
+
+function schedulePrecache() {
+  if (!AUDIO_PRECACHE || !('serviceWorker' in navigator) || !('caches' in window)) return;
+  if (!navigator.serviceWorker.controller) return; // 等 SW 接管页面后再调用
+  clearTimeout(_precacheTimer);
+  _precacheTimer = setTimeout(precacheAudio, 3000);
+}
+
+async function precacheAudio() {
+  if (_precacheRunning) { _precacheAgain = true; return; }
+  if (navigator.connection && navigator.connection.saveData) return;
+  if (!navigator.serviceWorker.controller || charData.length === 0) return;
+  _precacheRunning = true;
+  try {
+    const texts = new Set();
+    charData.forEach(d => texts.add(d.character));
+    wordData.forEach(d => texts.add(d.word));
+    const urls = [...texts].map(audioUrl);
+    const cache = await caches.open(AUDIO_CACHE_NAME);
+    let i = 0;
+    const worker = async () => {
+      while (i < urls.length) {
+        const u = urls[i++];
+        try {
+          if (await cache.match(u)) continue;
+          await fetch(u); // 经 sw.js 拦截并写入缓存
+        } catch (e) {}
+      }
+    };
+    await Promise.all([worker(), worker(), worker()]);
+  } catch (e) {
+  } finally {
+    _precacheRunning = false;
+    if (_precacheAgain) { _precacheAgain = false; schedulePrecache(); }
+  }
+}
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('sw.js').then(() => navigator.serviceWorker.ready).then(() => {
+      if (navigator.serviceWorker.controller) schedulePrecache();
+      else navigator.serviceWorker.addEventListener('controllerchange', schedulePrecache, {once:true});
+    }).catch(() => {});
+  });
+}
 </script>
 </body>
 </html>
