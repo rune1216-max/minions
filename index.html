@@ -2266,7 +2266,7 @@ document.addEventListener('click', unlockAudio, {once:true});
 // 想只做"播过即缓存"、不批量下载，把它改成 false。
 // 缓存名必须与 sw.js 中的 AUDIO_CACHE 一致；重新生成过 mp3 后，两处一起改版本号（v1 → v2）。
 const AUDIO_PRECACHE = true;
-const AUDIO_CACHE_NAME = 'chinese-audio-v1';
+const AUDIO_CACHE_NAME = 'chinese-audio-v2';
 let _precacheRunning = false, _precacheAgain = false, _precacheTimer = null;
 
 function schedulePrecache() {

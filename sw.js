@@ -1,7 +1,7 @@
 // 仅缓存 /audio/*.mp3（cache-first）。index.html 等其他请求一律不拦截，直接走网络，
 // 因此不会出现页面版本过期的问题。
 // 重新生成/替换过 mp3 后，把 AUDIO_CACHE 版本号加一（同时修改 index.html 里的 AUDIO_CACHE_NAME）。
-const AUDIO_CACHE = 'chinese-audio-v1';
+const AUDIO_CACHE = 'chinese-audio-v2';
 
 self.addEventListener('install', () => self.skipWaiting());
 
